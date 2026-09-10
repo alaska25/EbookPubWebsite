@@ -14,6 +14,8 @@ const bookSchema = new mongoose.Schema(
     fileType: { type: String, enum: ["pdf", "epub"], required: true },
     isFree: { type: Boolean, default: false },
     featured: { type: Boolean, default: false },
+    avgRating: { type: Number, default: 0 },
+    reviewCount: { type: Number, default: 0 },
   },
   { timestamps: true }
 );
