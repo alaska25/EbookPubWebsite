@@ -1,0 +1,29 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: adyoolau-backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./backend/.env
+    environment:
+      - PORT=5000
+    # If you point CLIENT_URL at http://localhost:5173, run the frontend
+    # separately with `npm run dev` for hot-reload during development instead
+    # of using the frontend container below.
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Baked into the build at build time — point this at wherever the
+        # backend is reachable from the browser (not from inside Docker).
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:5000/api}
+    container_name: adyoolau-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
