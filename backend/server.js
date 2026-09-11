@@ -1,5 +1,5 @@
+import "./config/env.js"; // must be first: loads .env before any other import runs
 import express from "express";
-import dotenv from "dotenv";
 import cors from "cors";
 import connectDB from "./config/db.js";
 import authRoutes from "./routes/authRoutes.js";
@@ -7,7 +7,6 @@ import bookRoutes from "./routes/bookRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
 import { stripeWebhook } from "./controllers/orderController.js";
 
-dotenv.config();
 connectDB();
 
 const app = express();

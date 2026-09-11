@@ -5,7 +5,7 @@ import ePub from "epubjs";
 import api from "../api/axios.js";
 
 // react-pdf needs a worker; load it from a CDN matching the installed pdfjs-dist version.
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 export default function Reader() {
   const { id } = useParams();
