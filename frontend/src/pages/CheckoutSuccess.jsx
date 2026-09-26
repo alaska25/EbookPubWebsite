@@ -15,8 +15,7 @@ export default function CheckoutSuccess() {
     <div className="mx-auto max-w-xl px-6 py-24 text-center">
       <h1 className="font-display text-3xl text-ivory">Thank you for your order</h1>
       <p className="mt-4 text-ivory/60">
-        Your payment was successful. It may take a few seconds for your new books to
-        appear in your library while Stripe confirms the payment.
+        Your PayPal payment was successful, and your new books have been added to your library.
       </p>
       {orderId && <p className="mt-2 text-sm text-ivory/40">Order reference: {orderId}</p>}
       <Link

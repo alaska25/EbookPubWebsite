@@ -6,8 +6,13 @@ const userSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     password: { type: String, required: true, minlength: 6 },
-    role: { type: String, enum: ["user", "admin"], default: "user" },
+    role: { type: String, enum: ["user", "admin", "superadmin"], default: "user" },
+    isActive: { type: Boolean, default: true },
     library: [{ type: mongoose.Schema.Types.ObjectId, ref: "Book" }],
+    // Optional profile photo, uploaded from the admin dashboard. Not
+    // required, so existing users without one keep working fine.
+    photoUrl: { type: String },
+    photoKey: { type: String },
   },
   { timestamps: true }
 );

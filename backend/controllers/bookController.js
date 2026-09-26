@@ -8,13 +8,55 @@ import path from "path";
 const publicUrl = (key) => `${process.env.S3_PUBLIC_URL_BASE}/${key}`;
 
 // GET /api/books?search=&category=&page=&limit=
+// GET /api/books?search=&category=&free=&page=&limit=
 export const getBooks = async (req, res) => {
   try {
-    const { search, category, page = 1, limit = 12 } = req.query;
+    const { search, category, free, page = 1, limit = 12 } = req.query;
     const query = {};
 
-    if (search) {
-      query.$text = { $search: search };
+    const term = typeof search === "string" ? search.trim() : "";
+    // Searching for exactly "free" (what the "Start with a Free Title"
+    // buttons send) means "show free books", not a text match. `?free=true`
+    // does the same thing and can be combined with a category.
+    const wantsFree = free === "true" || term.toLowerCase() === "free";
+
+    if (term && term.toLowerCase() !== "free") {
+      query.$text = { $search: term };
+    }
+    if (category) {
+      query.category = category;
+    }
+    if (wantsFree) {
+      query.isFree = true;
+    }
+    // Hide unpublished books from the public listing. Uses $ne rather than
+    // an equality check so books saved before this field existed (where
+    // published is undefined) still show up as published by default.
+    query.published = { $ne: false };
+
+    const skip = (Number(page) - 1) * Number(limit);
+    const [books, total] = await Promise.all([
+      Book.find(query).sort({ createdAt: -1 }).skip(skip).limit(Number(limit)),
+      Book.countDocuments(query),
+    ]);
+
+    res.json({ books, total, page: Number(page), pages: Math.ceil(total / Number(limit)) });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// GET /api/books/admin (admin) - same shape as the public listing, but
+// returns every book regardless of published status, so the admin table
+// doesn't lose track of books the moment they're unpublished.
+export const getBooksAdmin = async (req, res) => {
+  try {
+    const { search, category, page = 1, limit = 100 } = req.query;
+    const query = {};
+
+    const term = typeof search === "string" ? search.trim() : "";
+    if (term) {
+      query.$text = { $search: term };
     }
     if (category) {
       query.category = category;
@@ -26,7 +68,7 @@ export const getBooks = async (req, res) => {
       Book.countDocuments(query),
     ]);
 
-    res.json({ books, total, page: Number(page), pages: Math.ceil(total / limit) });
+    res.json({ books, total, page: Number(page), pages: Math.ceil(total / Number(limit)) });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -66,6 +108,144 @@ export const getBookAccess = async (req, res) => {
   }
 };
 
+// GET /api/books/:id/sample (public) - returns a time-limited signed URL to
+// the book's sample/preview file, if one has been uploaded. No ownership or
+// login required, same as browsing the book's detail page.
+export const getBookSample = async (req, res) => {
+  try {
+    const book = await Book.findById(req.params.id);
+    if (!book) return res.status(404).json({ message: "Book not found" });
+
+    if (!book.sampleKey) {
+      return res.status(404).json({ message: "No sample is available for this book yet" });
+    }
+
+    const command = new GetObjectCommand({ Bucket: process.env.S3_BUCKET, Key: book.sampleKey });
+    const signedUrl = await getSignedUrl(s3, command, { expiresIn: 60 * 60 }); // 1 hour
+
+    res.json({ url: signedUrl, fileType: book.sampleFileType, title: book.title });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// POST /api/books/:id/sample (admin) - expects multipart/form-data with a
+// single 'sampleFile' field. Replaces any existing sample for this book.
+export const uploadBookSample = async (req, res) => {
+  try {
+    const book = await Book.findById(req.params.id);
+    if (!book) return res.status(404).json({ message: "Book not found" });
+
+    const sampleFile = req.files?.sampleFile?.[0];
+    if (!sampleFile) {
+      return res.status(400).json({ message: "A sample file is required" });
+    }
+
+    // Best-effort cleanup of the previous sample, if any, before saving the new one.
+    if (book.sampleKey) {
+      try {
+        await s3.send(new DeleteObjectCommand({ Bucket: process.env.S3_BUCKET, Key: book.sampleKey }));
+      } catch (s3Err) {
+        console.warn("S3 cleanup warning (old sample):", s3Err.message);
+      }
+    }
+
+    const ext = path.extname(sampleFile.originalname).toLowerCase().replace(".", "");
+
+    book.sampleKey = sampleFile.key;
+    book.sampleUrl = sampleFile.location || publicUrl(sampleFile.key);
+    book.sampleFileType = ext === "epub" ? "epub" : "pdf";
+
+    const updated = await book.save();
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// GET /api/books/:id/file (admin) - returns a time-limited signed URL to
+// download the current book file, regardless of ownership. Used on the
+// admin edit form so the current manuscript can be downloaded before
+// it's replaced.
+export const getBookFileAdmin = async (req, res) => {
+  try {
+    const book = await Book.findById(req.params.id);
+    if (!book) return res.status(404).json({ message: "Book not found" });
+
+    const command = new GetObjectCommand({ Bucket: process.env.S3_BUCKET, Key: book.fileKey });
+    const signedUrl = await getSignedUrl(s3, command, { expiresIn: 60 * 10 }); // 10 minutes
+
+    res.json({ url: signedUrl, fileType: book.fileType, title: book.title });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// POST /api/books/:id/cover (admin) - expects multipart/form-data with a
+// single 'cover' field. Replaces the existing cover image for this book.
+export const uploadBookCover = async (req, res) => {
+  try {
+    const book = await Book.findById(req.params.id);
+    if (!book) return res.status(404).json({ message: "Book not found" });
+
+    const coverFile = req.files?.cover?.[0];
+    if (!coverFile) {
+      return res.status(400).json({ message: "A cover image is required" });
+    }
+
+    // Best-effort cleanup of the previous cover before saving the new one.
+    if (book.coverKey) {
+      try {
+        await s3.send(new DeleteObjectCommand({ Bucket: process.env.S3_BUCKET, Key: book.coverKey }));
+      } catch (s3Err) {
+        console.warn("S3 cleanup warning (old cover):", s3Err.message);
+      }
+    }
+
+    book.coverKey = coverFile.key;
+    book.coverUrl = coverFile.location || publicUrl(coverFile.key);
+
+    const updated = await book.save();
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// POST /api/books/:id/file (admin) - expects multipart/form-data with a
+// single 'bookFile' field. Replaces the existing book file for this book.
+export const uploadBookFile = async (req, res) => {
+  try {
+    const book = await Book.findById(req.params.id);
+    if (!book) return res.status(404).json({ message: "Book not found" });
+
+    const bookFile = req.files?.bookFile?.[0];
+    if (!bookFile) {
+      return res.status(400).json({ message: "A book file is required" });
+    }
+
+    // Best-effort cleanup of the previous file before saving the new one.
+    if (book.fileKey) {
+      try {
+        await s3.send(new DeleteObjectCommand({ Bucket: process.env.S3_BUCKET, Key: book.fileKey }));
+      } catch (s3Err) {
+        console.warn("S3 cleanup warning (old book file):", s3Err.message);
+      }
+    }
+
+    const ext = path.extname(bookFile.originalname).toLowerCase().replace(".", "");
+
+    book.fileKey = bookFile.key;
+    book.fileUrl = bookFile.location || publicUrl(bookFile.key);
+    book.fileType = ext === "epub" ? "epub" : "pdf";
+
+    const updated = await book.save();
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 // POST /api/books/:id/claim (protected) - grants a free book directly to the
 // user's library without going through Stripe checkout.
 export const claimFreeBook = async (req, res) => {
@@ -92,12 +272,25 @@ export const getCategories = async (req, res) => {
   }
 };
 
-// POST /api/books (admin) - expects multipart/form-data with 'cover' and 'bookFile'
+// POST /api/books (admin) - expects multipart/form-data with 'cover' and
+// 'bookFile', and optionally a 'sampleFile' to seed the preview at creation time.
 export const createBook = async (req, res) => {
   try {
-    const { title, author, description, category, price, isFree, featured } = req.body;
+    const {
+      title,
+      subtitle,
+      author,
+      description,
+      category,
+      price,
+      isFree,
+      featured,
+      pageCount,
+      publishedAt,
+    } = req.body;
     const coverFile = req.files?.cover?.[0];
     const bookFile = req.files?.bookFile?.[0];
+    const sampleFile = req.files?.sampleFile?.[0];
 
     if (!coverFile || !bookFile) {
       return res.status(400).json({ message: "Cover image and book file are both required" });
@@ -105,19 +298,36 @@ export const createBook = async (req, res) => {
 
     const ext = path.extname(bookFile.originalname).toLowerCase().replace(".", "");
 
+    const sampleFields = sampleFile
+      ? {
+          sampleKey: sampleFile.key,
+          sampleUrl: sampleFile.location || publicUrl(sampleFile.key),
+          sampleFileType:
+            path.extname(sampleFile.originalname).toLowerCase().replace(".", "") === "epub"
+              ? "epub"
+              : "pdf",
+        }
+      : {};
+
     const book = await Book.create({
       title,
+      subtitle,
       author,
       description,
       category,
       price: isFree === "true" ? 0 : Number(price),
       isFree: isFree === "true",
       featured: featured === "true",
+      // Both optional: only set when the admin form actually sent a value,
+      // so an empty string doesn't get coerced into 0 or an invalid Date.
+      ...(pageCount !== undefined && pageCount !== "" ? { pageCount: Number(pageCount) } : {}),
+      ...(publishedAt !== undefined && publishedAt !== "" ? { publishedAt: new Date(publishedAt) } : {}),
       coverUrl: coverFile.location || publicUrl(coverFile.key),
       coverKey: coverFile.key,
       fileUrl: bookFile.location || publicUrl(bookFile.key),
       fileKey: bookFile.key,
       fileType: ext === "epub" ? "epub" : "pdf",
+      ...sampleFields,
     });
 
     res.status(201).json(book);
@@ -132,14 +342,31 @@ export const updateBook = async (req, res) => {
     const book = await Book.findById(req.params.id);
     if (!book) return res.status(404).json({ message: "Book not found" });
 
-    const { title, author, description, category, price, isFree, featured } = req.body;
+    const {
+      title,
+      subtitle,
+      author,
+      description,
+      category,
+      price,
+      isFree,
+      featured,
+      pageCount,
+      publishedAt,
+      published,
+    } = req.body;
     if (title !== undefined) book.title = title;
+    if (subtitle !== undefined) book.subtitle = subtitle;
     if (author !== undefined) book.author = author;
     if (description !== undefined) book.description = description;
     if (category !== undefined) book.category = category;
     if (price !== undefined) book.price = Number(price);
     if (isFree !== undefined) book.isFree = isFree === "true" || isFree === true;
     if (featured !== undefined) book.featured = featured === "true" || featured === true;
+    // Empty string clears the field back to unset; any other value sets it.
+    if (pageCount !== undefined) book.pageCount = pageCount === "" ? undefined : Number(pageCount);
+    if (publishedAt !== undefined) book.publishedAt = publishedAt === "" ? undefined : new Date(publishedAt);
+    if (published !== undefined) book.published = published === "true" || published === true;
 
     const updated = await book.save();
     res.json(updated);
@@ -157,6 +384,9 @@ export const deleteBook = async (req, res) => {
     try {
       await s3.send(new DeleteObjectCommand({ Bucket: process.env.S3_BUCKET, Key: book.coverKey }));
       await s3.send(new DeleteObjectCommand({ Bucket: process.env.S3_BUCKET, Key: book.fileKey }));
+      if (book.sampleKey) {
+        await s3.send(new DeleteObjectCommand({ Bucket: process.env.S3_BUCKET, Key: book.sampleKey }));
+      }
     } catch (s3Err) {
       console.warn("S3 cleanup warning:", s3Err.message);
     }

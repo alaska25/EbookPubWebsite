@@ -16,8 +16,17 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      await login(email, password);
-      navigate(location.state?.from || "/");
+      const data = await login(email, password);
+
+      if (location.state?.from) {
+        navigate(location.state.from);
+      } else if (data.role === "superadmin") {
+        navigate("/admin/dashboard");
+      } else if (data.role === "admin") {
+        navigate("/admin/books");
+      } else {
+        navigate("/");
+      }
     } catch (err) {
       setError(err.response?.data?.message || "Could not sign in.");
     } finally {

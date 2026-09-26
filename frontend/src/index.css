@@ -2,17 +2,67 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Light theme (default) — warm off-white surfaces, dark text, deeper gold for contrast */
+:root {
+  --color-ink: 250 248 243; /* warm off-white page background */
+  --color-navy-950: 245 242 234; /* lightest surface */
+  --color-navy-900: 238 233 221; /* nav/footer surface */
+  --color-navy-800: 230 224 208; /* card surface */
+  --color-navy-700: 212 203 178; /* borders */
+  --color-gold-400: 165 122 30; /* darker gold, readable on light bg */
+  --color-gold-500: 140 102 22;
+  --color-gold-600: 112 80 16;
+  --color-ivory: 24 27 33; /* dark text (name kept for class compatibility) */
+}
+
+/* Dark theme — matches the original navy/gold/ivory palette */
+[data-theme="dark"] {
+  --color-ink: 11 14 20; /* #0B0E14 */
+  --color-navy-950: 11 14 20; /* #0B0E14 */
+  --color-navy-900: 16 20 28; /* #10141C */
+  --color-navy-800: 23 28 39; /* #171C27 */
+  --color-navy-700: 35 41 54; /* #232936 */
+  --color-gold-400: 232 199 122; /* #E8C77A */
+  --color-gold-500: 212 169 79; /* #D4A94F */
+  --color-gold-600: 180 134 58; /* #B4863A */
+  --color-ivory: 251 250 247; /* #FBFAF7 */
+}
+
 html {
   scroll-behavior: smooth;
 }
+/* Modern heading defaults for every page, including ones rendered inside modals */
+@layer base {
+  h1, h2, h3, h4 {
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    text-wrap: balance;
+  }
+}
 
+/* Anything still using the old serif class now uses the site's body font.
+   Kept outside @layer so it overrides the Tailwind utility. */
+.font-display {
+  font-family: inherit;
+}
 body {
-  background-color: #0b0e14;
+  background-color: rgb(var(--color-ink));
+  transition: background-color 0.2s ease;
 }
 
 ::selection {
   background-color: #d4a94f;
   color: #0b0e14;
+}
+
+/* Hides the scrollbar on carousels while still allowing scroll/swipe */
+.no-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge legacy */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari */
 }
 
 /* Visible keyboard focus for accessibility */

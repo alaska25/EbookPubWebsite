@@ -31,8 +31,22 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  // Merges partial fields (e.g. a new photoUrl after an avatar upload) into
+  // the stored user instead of requiring a full re-login to pick up a change.
+  const updateUser = (partial) => {
+    persist({ ...user, ...partial });
+  };
+
+  // A superadmin can do everything an admin can, so isAdmin stays true for
+  // both roles — existing admin-only UI (like the Admin nav link) keeps
+  // working unchanged for superadmins too.
+  const isSuperAdmin = user?.role === "superadmin";
+  const isAdmin = user?.role === "admin" || isSuperAdmin;
+
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, isAdmin: user?.role === "admin" }}>
+    <AuthContext.Provider
+      value={{ user, login, register, logout, updateUser, isAdmin, isSuperAdmin }}
+    >
       {children}
     </AuthContext.Provider>
   );
