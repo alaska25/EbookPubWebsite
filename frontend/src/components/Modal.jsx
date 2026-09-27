@@ -8,8 +8,8 @@ const FOCUSABLE =
 
 /**
  * Accessible modal: portal, backdrop click + Escape to close, scroll lock,
- * focus trap, focus restored to the trigger on close. Bottom sheet on mobile,
- * centered card from the sm breakpoint up. Animations respect reduced motion.
+ * focus trap, focus restored to the trigger on close. Centered card at all
+ * breakpoints. Animations respect reduced motion.
  */
 export default function Modal({ open, onClose, title, children }) {
   const [mounted, setMounted] = useState(open);
@@ -88,7 +88,7 @@ export default function Modal({ open, onClose, title, children }) {
 
   return createPortal(
     // z-[60] sits above the chat widget (z-50)
-    <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center sm:p-6">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
       <div
         aria-hidden="true"
         onClick={onClose}
@@ -103,10 +103,8 @@ export default function Modal({ open, onClose, title, children }) {
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className={`relative flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-navy-700 bg-navy-900 shadow-2xl shadow-black/50 outline-none sm:max-w-2xl sm:rounded-lg motion-safe:transition motion-safe:duration-200 ${
-          visible
-            ? "translate-y-0 opacity-100 sm:scale-100"
-            : "translate-y-4 opacity-0 sm:scale-95"
+        className={`relative flex max-h-[90dvh] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-navy-700 bg-navy-900 shadow-2xl shadow-black/50 outline-none sm:max-w-2xl motion-safe:transition motion-safe:duration-200 ${
+          visible ? "translate-y-0 opacity-100 scale-100" : "translate-y-0 opacity-0 scale-95"
         }`}
       >
         <div className="flex shrink-0 items-center justify-between border-b border-navy-700/60 bg-navy-800 px-5 py-3">

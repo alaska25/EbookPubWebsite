@@ -5,6 +5,8 @@ import api from "../api/axios.js";
 import AdminDashboardHome from "./admin/AdminDashboardHome.jsx";
 import AdminBooks from "./admin/AdminBooks.jsx";
 import AdminBookForm from "./admin/AdminBookForm.jsx";
+import AdminTemplates from "./admin/AdminTemplates.jsx";
+import AdminTemplateForm from "./admin/AdminTemplateForm.jsx";
 import AdminOrders from "./admin/AdminOrders.jsx";
 import AdminUsers from "./admin/AdminUsers.jsx";
 import AdminCustomers from "./admin/AdminCustomers.jsx";
@@ -48,10 +50,10 @@ export default function AdminDashboard() {
     : `${user?.name ?? "Admin"} · Admin`;
 
   return (
-    // Pins this section to the storefront's dark surface regardless of the
-    // site-wide theme toggle, so the admin area reads as part of the same
-    // product rather than a default light builder page.
-    <div data-theme="dark" className="min-h-screen bg-ink">
+    // No local data-theme override here anymore — this section now follows
+    // whatever theme is set on <html> by ThemeContext, so the light/dark
+    // toggle applies across the whole page, admin area included.
+    <div className="min-h-screen bg-ink">
       <div className="mx-auto max-w-6xl px-6 py-12">
         <div className="flex items-center gap-4">
           {/* Clicking the avatar opens the file picker directly — no
@@ -90,26 +92,32 @@ export default function AdminDashboard() {
 
         <nav className="mt-6 flex flex-wrap gap-1 rounded-full border border-navy-700/60 bg-navy-900/60 p-1 w-fit">
           {isSuperAdmin && (
-            <NavLink to="dashboard" className={tabClass}>
+            <NavLink to="dashboard" className={tabClass} end>
               Dashboard
             </NavLink>
           )}
           <NavLink to="books" className={tabClass} end>
             Books
           </NavLink>
-          <NavLink to="books/new" className={tabClass}>
+          <NavLink to="books/new" className={tabClass} end>
             Add book
           </NavLink>
-          <NavLink to="orders" className={tabClass}>
+          <NavLink to="templates" className={tabClass} end>
+            Templates
+          </NavLink>
+          <NavLink to="templates/new" className={tabClass} end>
+            Add template
+          </NavLink>
+          <NavLink to="orders" className={tabClass} end>
             Orders
           </NavLink>
           {isSuperAdmin && (
-            <NavLink to="admins" className={tabClass}>
+            <NavLink to="admins" className={tabClass} end>
               Admins
             </NavLink>
           )}
           {isSuperAdmin && (
-            <NavLink to="customers" className={tabClass}>
+            <NavLink to="customers" className={tabClass} end>
               Customers
             </NavLink>
           )}
@@ -122,6 +130,9 @@ export default function AdminDashboard() {
             <Route path="books" element={<AdminBooks />} />
             <Route path="books/new" element={<AdminBookForm />} />
             <Route path="books/:id/edit" element={<AdminBookForm />} />
+            <Route path="templates" element={<AdminTemplates />} />
+            <Route path="templates/new" element={<AdminTemplateForm />} />
+            <Route path="templates/:id/edit" element={<AdminTemplateForm />} />
             <Route path="orders" element={<AdminOrders />} />
             {isSuperAdmin && <Route path="admins" element={<AdminUsers />} />}
             {isSuperAdmin && <Route path="customers" element={<AdminCustomers />} />}

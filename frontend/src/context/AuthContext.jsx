@@ -20,9 +20,33 @@ export const AuthProvider = ({ children }) => {
     return data;
   };
 
-  const register = async (name, email, password) => {
-    const { data } = await api.post("/auth/register", { name, email, password });
+  // Completes sign-in using the ID token from Google Identity Services
+  // (see components/GoogleLoginButton.jsx). The backend verifies the token,
+  // finds-or-creates the matching user, and returns the same shape as
+  // login()/register(), so this can be used identically once it resolves.
+  const googleLogin = async (credential) => {
+    const { data } = await api.post("/auth/google", { credential });
     persist(data);
+    return data;
+  };
+
+  const register = async (name, email, password, captchaToken) => {
+    const { data } = await api.post("/auth/register", { name, email, password, captchaToken });
+    persist(data);
+    return data;
+  };
+
+  // Requests a reset email. Does not log the user in or touch stored auth
+  // state — the backend should respond the same way whether or not the
+  // email exists, so this never reveals which emails are registered.
+  const forgotPassword = async (email) => {
+    const { data } = await api.post("/auth/forgot-password", { email });
+    return data;
+  };
+
+  // Completes a reset using the token from the emailed link.
+  const resetPassword = async (token, password) => {
+    const { data } = await api.post("/auth/reset-password", { token, password });
     return data;
   };
 
@@ -45,7 +69,18 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider
-      value={{ user, login, register, logout, updateUser, isAdmin, isSuperAdmin }}
+      value={{
+        user,
+        login,
+        googleLogin,
+        register,
+        forgotPassword,
+        resetPassword,
+        logout,
+        updateUser,
+        isAdmin,
+        isSuperAdmin,
+      }}
     >
       {children}
     </AuthContext.Provider>

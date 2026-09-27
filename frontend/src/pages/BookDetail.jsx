@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import api from "../api/axios.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useCart } from "../context/CartContext.jsx";
@@ -7,6 +8,7 @@ import StarRating from "../components/StarRating.jsx";
 import BackButton from "../components/BackButton.jsx";
 
 export default function BookDetail() {
+  const { t } = useTranslation();
   const { id } = useParams();
   const [book, setBook] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -26,6 +28,12 @@ export default function BookDetail() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Without this, navigating here from a scrolled-down position on the
+    // catalog or a home carousel (common on mobile) leaves this page
+    // rendered at that same scroll offset — landing near the reviews or
+    // footer instead of the top of the new book's page.
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+
     api
       .get(`/books/${id}`)
       .then(({ data }) => setBook(data))
@@ -56,11 +64,11 @@ export default function BookDetail() {
     e.preventDefault();
     setReviewError("");
     if (myRating < 1) {
-      setReviewError("Choose a star rating first.");
+      setReviewError(t("bookDetail.errors.chooseRating"));
       return;
     }
     if (!myComment.trim()) {
-      setReviewError("Write a short review before submitting.");
+      setReviewError(t("bookDetail.errors.writeReviewSubmit"));
       return;
     }
     setSubmittingReview(true);
@@ -72,7 +80,7 @@ export default function BookDetail() {
       const { data } = await api.get(`/books/${id}`);
       setBook(data);
     } catch (err) {
-      setReviewError(err.response?.data?.message || "Could not submit your review.");
+      setReviewError(err.response?.data?.message || t("bookDetail.errors.submitFailed"));
     } finally {
       setSubmittingReview(false);
     }
@@ -94,11 +102,11 @@ export default function BookDetail() {
   const handleUpdateReview = async (reviewId) => {
     setReviewError("");
     if (editRating < 1) {
-      setReviewError("Choose a star rating first.");
+      setReviewError(t("bookDetail.errors.chooseRating"));
       return;
     }
     if (!editComment.trim()) {
-      setReviewError("Write a short review before saving.");
+      setReviewError(t("bookDetail.errors.writeReviewSave"));
       return;
     }
     setSubmittingReview(true);
@@ -112,26 +120,26 @@ export default function BookDetail() {
       const { data } = await api.get(`/books/${id}`);
       setBook(data);
     } catch (err) {
-      setReviewError(err.response?.data?.message || "Could not save your changes.");
+      setReviewError(err.response?.data?.message || t("bookDetail.errors.saveFailed"));
     } finally {
       setSubmittingReview(false);
     }
   };
 
   const handleDeleteReview = async (reviewId) => {
-    if (!confirm("Delete your review?")) return;
+    if (!confirm(t("bookDetail.confirmDeleteReview"))) return;
     try {
       await api.delete(`/books/${id}/reviews/${reviewId}`);
       loadReviews();
       const { data } = await api.get(`/books/${id}`);
       setBook(data);
     } catch (err) {
-      setReviewError(err.response?.data?.message || "Could not delete your review.");
+      setReviewError(err.response?.data?.message || t("bookDetail.errors.deleteFailed"));
     }
   };
 
-  if (loading) return <p className="mx-auto max-w-6xl px-6 py-16 text-ivory/50">Loading…</p>;
-  if (!book) return <p className="mx-auto max-w-6xl px-6 py-16 text-ivory/50">Book not found.</p>;
+  if (loading) return <p className="mx-auto max-w-6xl px-6 py-16 text-ivory/50">{t("bookDetail.loading")}</p>;
+  if (!book) return <p className="mx-auto max-w-6xl px-6 py-16 text-ivory/50">{t("bookDetail.notFound")}</p>;
 
   const inCart = items.some((b) => b._id === book._id);
   const handleRead = () => navigate(`/read/${book._id}`);
@@ -184,14 +192,14 @@ export default function BookDetail() {
           </div>
           <h1 className="mt-1.5 font-display text-4xl text-ivory">{book.title}</h1>
           {book.subtitle && <p className="mt-1 text-xl text-ivory/70">{book.subtitle}</p>}
-          <p className="mt-1 text-lg text-ivory/60">by {book.author}</p>
+          <p className="mt-1 text-lg text-ivory/60">{t("bookDetail.byAuthor", { author: book.author })}</p>
 
           <div className="mt-1.5 flex items-center gap-2">
             <StarRating value={book.avgRating} />
             <span className="text-sm text-ivory/50">
               {book.reviewCount > 0
-                ? `${book.avgRating.toFixed(1)} (${book.reviewCount} review${book.reviewCount === 1 ? "" : "s"})`
-                : "No reviews yet"}
+                ? t("bookDetail.ratingSummary", { rating: book.avgRating.toFixed(1), count: book.reviewCount })
+                : t("bookDetail.noReviewsYet")}
             </span>
           </div>
 
@@ -201,7 +209,7 @@ export default function BookDetail() {
               full-width button competing with "Add to cart". */}
           <div className="mt-5 flex flex-wrap items-center gap-4">
             <span className="font-display text-3xl font-semibold text-gold-400">
-              {book.isFree ? "Free" : `$${book.price.toFixed(2)}`}
+              {book.isFree ? t("bookDetail.free") : `$${book.price.toFixed(2)}`}
             </span>
 
             {owned ? (
@@ -209,7 +217,7 @@ export default function BookDetail() {
                 onClick={handleRead}
                 className="rounded-full bg-gold-500 px-6 py-3 text-sm font-medium text-ink hover:bg-gold-400"
               >
-                Read now
+                {t("bookDetail.readNow")}
               </button>
             ) : book.isFree ? (
               <button
@@ -217,7 +225,7 @@ export default function BookDetail() {
                 disabled={claimingFree}
                 className="rounded-full bg-gold-500 px-6 py-3 text-sm font-medium text-ink hover:bg-gold-400 disabled:opacity-50"
               >
-                {claimingFree ? "Adding…" : "Get for free"}
+                {claimingFree ? t("bookDetail.gettingFree") : t("bookDetail.getForFree")}
               </button>
             ) : (
               <button
@@ -225,7 +233,7 @@ export default function BookDetail() {
                 disabled={inCart || addingToCart}
                 className="rounded-full bg-gold-500 px-6 py-3 text-sm font-medium text-ink hover:bg-gold-400 disabled:opacity-50"
               >
-                {inCart ? "In your cart" : addingToCart ? "Adding…" : "Add to cart"}
+                {inCart ? t("bookDetail.inYourCart") : addingToCart ? t("bookDetail.addingToCart") : t("bookDetail.addToCart")}
               </button>
             )}
 
@@ -234,12 +242,12 @@ export default function BookDetail() {
                 onClick={() => navigate(`/sample/${book._id}`)}
                 className="text-sm font-medium text-gold-400 underline-offset-4 hover:text-gold-300 hover:underline"
               >
-                Read sample
+                {t("bookDetail.readSample")}
               </button>
             )}
           </div>
 
-          {!user && <p className="mt-2 text-sm text-ivory/40">Sign in to buy or read this title.</p>}
+          {!user && <p className="mt-2 text-sm text-ivory/40">{t("bookDetail.signInToBuyOrRead")}</p>}
 
           {/* Book details row — always shows Format/Category (already
               hinted at by the badges above, but spelled out here for
@@ -248,25 +256,25 @@ export default function BookDetail() {
           <dl className="mt-4 flex flex-wrap gap-x-6 gap-y-1 text-sm text-ivory/60">
             {book.fileType && (
               <div className="flex gap-1.5">
-                <dt className="text-ivory/40">Format:</dt>
+                <dt className="text-ivory/40">{t("bookDetail.format")}</dt>
                 <dd>{book.fileType.toUpperCase()}</dd>
               </div>
             )}
             {book.category && (
               <div className="flex gap-1.5">
-                <dt className="text-ivory/40">Category:</dt>
+                <dt className="text-ivory/40">{t("bookDetail.category")}</dt>
                 <dd>{book.category}</dd>
               </div>
             )}
             {book.pageCount && (
               <div className="flex gap-1.5">
-                <dt className="text-ivory/40">Length:</dt>
-                <dd>{book.pageCount} pages</dd>
+                <dt className="text-ivory/40">{t("bookDetail.length")}</dt>
+                <dd>{t("bookDetail.pages", { count: book.pageCount })}</dd>
               </div>
             )}
             {book.publishedAt && (
               <div className="flex gap-1.5">
-                <dt className="text-ivory/40">Published:</dt>
+                <dt className="text-ivory/40">{t("bookDetail.published")}</dt>
                 <dd>{new Date(book.publishedAt).getFullYear()}</dd>
               </div>
             )}
@@ -280,13 +288,13 @@ export default function BookDetail() {
           {!user && (
             <p className="mt-4 text-sm text-ivory/50">
               <Link to="/login" className="text-gold-400 hover:text-gold-300">
-                Sign in
+                {t("bookDetail.signInPrompt")}
               </Link>{" "}
-              or{" "}
+              {t("bookDetail.orCreateAccount")}{" "}
               <Link to="/register" className="text-gold-400 hover:text-gold-300">
-                create an account
+                {t("bookDetail.createAccount")}
               </Link>{" "}
-              to add this to your library.
+              {t("bookDetail.toAddToLibrary")}
             </p>
           )}
         </div>
@@ -294,7 +302,7 @@ export default function BookDetail() {
 
       {/* Bottom Section: Customer Reviews Feed Layout */}
       <div className="mt-16 border-t border-navy-700/60 pt-10">
-        <h2 className="font-display text-2xl text-ivory">Reviews</h2>
+        <h2 className="font-display text-2xl text-ivory">{t("bookDetail.reviewsHeading")}</h2>
 
         {/* Dynamic Submission Form for verified buyers */}
         {owned && !myReview && (
@@ -304,7 +312,7 @@ export default function BookDetail() {
               rows={3}
               value={myComment}
               onChange={(e) => setMyComment(e.target.value)}
-              placeholder="What did you think of this book?"
+              placeholder={t("bookDetail.reviewPlaceholder")}
               className="w-full rounded-md border border-navy-700 bg-navy-900 px-4 py-2 text-ivory placeholder:text-ivory/40 focus:border-gold-500 outline-none"
             />
             {reviewError && <p className="text-sm text-red-400">{reviewError}</p>}
@@ -313,19 +321,19 @@ export default function BookDetail() {
               disabled={submittingReview}
               className="rounded-full bg-gold-500 px-5 py-2.5 text-sm font-medium text-ink hover:bg-gold-400 disabled:opacity-50"
             >
-              {submittingReview ? "Posting…" : "Post review"}
+              {submittingReview ? t("bookDetail.postingReview") : t("bookDetail.postReview")}
             </button>
           </form>
         )}
 
         {user && !owned && (
-          <p className="mt-6 text-sm text-ivory/40">Only readers who own this book can leave a review.</p>
+          <p className="mt-6 text-sm text-ivory/40">{t("bookDetail.onlyOwnersCanReview")}</p>
         )}
 
         {/* Dynamic Reviews Loops Feed List */}
         <div className="mt-8 space-y-6">
           {reviews.length === 0 ? (
-            <p className="text-ivory/50">No reviews yet — be the first to share your thoughts.</p>
+            <p className="text-ivory/50">{t("bookDetail.noReviewsMessage")}</p>
           ) : (
             reviews.map((r) => {
               const isMine = user && r.user === user._id;
@@ -349,13 +357,13 @@ export default function BookDetail() {
                           disabled={submittingReview}
                           className="rounded-full bg-gold-500 px-5 py-2 text-sm font-medium text-ink hover:bg-gold-400 disabled:opacity-50"
                         >
-                          {submittingReview ? "Saving…" : "Save"}
+                          {submittingReview ? t("bookDetail.saving") : t("bookDetail.save")}
                         </button>
                         <button
                           onClick={cancelEditing}
                           className="rounded-full border border-navy-700 px-5 py-2 text-sm font-medium text-ivory/70 hover:text-ivory"
                         >
-                          Cancel
+                          {t("bookDetail.cancel")}
                         </button>
                       </div>
                     </div>
@@ -377,13 +385,13 @@ export default function BookDetail() {
                             onClick={() => startEditing(r)}
                             className="text-xs text-gold-400 hover:text-gold-300"
                           >
-                            Edit
+                            {t("bookDetail.edit")}
                           </button>
                           <button
                             onClick={() => handleDeleteReview(r._id)}
                             className="text-xs text-ivory/40 hover:text-red-400"
                           >
-                            Delete
+                            {t("bookDetail.delete")}
                           </button>
                         </div>
                       )}

@@ -1,20 +1,23 @@
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 export default function Contact() {
+  const { t } = useTranslation();
+
   return (
     <div className="mx-auto max-w-3xl px-6 py-16">
-      <h1 className="font-display text-4xl text-ivory">Contact us</h1>
+      <Link to="/" className="text-sm text-ivory/50 hover:text-ivory">
+        {t("contact.backHome")}
+      </Link>
+
+      <h1 className="mt-6 font-display text-4xl text-ivory">{t("contact.title")}</h1>
 
       <div className="mt-8 space-y-6 leading-relaxed text-ivory/70">
-        <p>
-          Have a question about an order, a technical issue with the site, or
-          feedback about a book? We read every message and try to reply within
-          1–2 business days.
-        </p>
+        <p>{t("contact.intro")}</p>
 
         <div className="rounded-lg border border-navy-700/60 bg-navy-900 p-6">
-          <p className="text-sm uppercase tracking-wide text-gold-500/80">Email</p>
-          
+          <p className="text-sm uppercase tracking-wide text-gold-500/80">{t("contact.emailLabel")}</p>
+
           <a href="mailto:support@adyoolau.com"
             className="mt-1 block font-display text-xl text-ivory hover:text-gold-400"
           >
@@ -22,25 +25,20 @@ export default function Contact() {
           </a>
         </div>
 
-        <h2 className="font-display text-2xl text-ivory pt-4">Before you write in</h2>
+        <h2 className="font-display text-2xl text-ivory pt-4">{t("contact.beforeYouWriteHeading")}</h2>
         <p>
-          A few common questions are answered on our{" "}
+          {t("contact.beforeYouWriteIntro")}{" "}
           <Link to="/refund-policy" className="text-gold-400 hover:text-gold-300">
-            Refund Policy
+            {t("contact.refundPolicyLinkLabel")}
           </Link>{" "}
-          and{" "}
+          {t("contact.and")}{" "}
           <Link to="/terms" className="text-gold-400 hover:text-gold-300">
-            Terms of Service
+            {t("contact.termsLinkLabel")}
           </Link>{" "}
-          pages — worth a quick look before reaching out, in case your answer is
-          already there.
+          {t("contact.beforeYouWriteOutro")}
         </p>
 
-        <p>
-          For order-specific issues, it helps to include the email address you used
-          to purchase and, if you have it, the order reference shown on your
-          checkout confirmation.
-        </p>
+        <p>{t("contact.orderIssuesNote")}</p>
       </div>
     </div>
   );

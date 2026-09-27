@@ -15,6 +15,11 @@ export default function SampleReader() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Without this, navigating here from a scrolled-down position on the
+    // book detail page leaves this page rendered at that same scroll
+    // offset instead of starting at the top.
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+
     Promise.all([api.get(`/books/${id}/sample`), api.get(`/books/${id}`)])
       .then(([sampleRes, bookRes]) => {
         setSample(sampleRes.data);

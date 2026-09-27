@@ -23,6 +23,11 @@ const loadPaypalScript = (clientId) => {
   return paypalScriptPromise;
 };
 
+// Cart items can be books or templates. Older cart entries saved before
+// templates existed won't have `itemType` set, so we also fall back to
+// checking `fileType === "zip"`, which only templates have.
+const isTemplateItem = (item) => item.itemType === "template" || item.fileType === "zip";
+
 export default function Cart() {
   const {
     items,
@@ -45,11 +50,11 @@ export default function Cart() {
   const hasSelection = selectedItems.length > 0;
 
   // PayPal's callbacks are created once, so they'd see stale data if they read
-  // `selectedItems` directly. This ref always holds the latest ticked ids...
-  const selectedIdsRef = useRef([]);
-  selectedIdsRef.current = selectedItems.map((b) => b._id);
+  // `selectedItems` directly. This ref always holds the latest ticked items...
+  const selectedItemsRef = useRef([]);
+  selectedItemsRef.current = selectedItems;
 
-  // ...and this one remembers exactly which books were sent to PayPal, so only
+  // ...and this one remembers exactly which ids were sent to PayPal, so only
   // those are removed after payment even if the ticks change mid-checkout.
   const purchasingIdsRef = useRef([]);
 
@@ -70,10 +75,16 @@ export default function Cart() {
 
             createOrder: async () => {
               setError("");
-              const bookIds = [...selectedIdsRef.current];
-              purchasingIdsRef.current = bookIds;
+              const currentItems = selectedItemsRef.current;
+              const bookIds = currentItems.filter((i) => !isTemplateItem(i)).map((i) => i._id);
+              const templateIds = currentItems.filter(isTemplateItem).map((i) => i._id);
+              purchasingIdsRef.current = currentItems.map((i) => i._id);
+
               try {
-                const { data } = await api.post("/orders/paypal/create-order", { bookIds });
+                const { data } = await api.post("/orders/paypal/create-order", {
+                  bookIds,
+                  templateIds,
+                });
                 return data.paypalOrderId;
               } catch (err) {
                 setError(err.response?.data?.message || "Could not start checkout.");
@@ -86,7 +97,7 @@ export default function Cart() {
                 const { data: result } = await api.post("/orders/paypal/capture-order", {
                   paypalOrderId: data.orderID,
                 });
-                // Remove only what was bought; books saved for later stay in the cart.
+                // Remove only what was bought; items saved for later stay in the cart.
                 removeItems(purchasingIdsRef.current);
                 navigate(`/checkout/success?order=${result.orderId}`);
               } catch (err) {
@@ -108,7 +119,7 @@ export default function Cart() {
       cancelled = true;
     };
     // Buttons only need re-rendering when the login state changes or the
-    // container appears/disappears; tick changes are handled by the ref.
+    // container appears/disappears; tick changes are handled by the refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, hasSelection]);
 
@@ -138,34 +149,44 @@ export default function Cart() {
           </div>
 
           <div className="divide-y divide-navy-700/60">
-            {items.map((book) => {
-              const selected = isSelected(book._id);
+            {items.map((item) => {
+              const selected = isSelected(item._id);
+              const template = isTemplateItem(item);
+              const subtitle = template ? item.tagline || item.category : item.author;
+
               return (
-                <div key={book._id} className="flex items-center gap-3 py-4 sm:gap-4">
+                <div key={item._id} className="flex items-center gap-3 py-4 sm:gap-4">
                   <input
                     type="checkbox"
                     checked={selected}
-                    onChange={() => toggleSelected(book._id)}
-                    aria-label={`Include ${book.title} in checkout`}
+                    onChange={() => toggleSelected(item._id)}
+                    aria-label={`Include ${item.title} in checkout`}
                     className="h-5 w-5 shrink-0 cursor-pointer accent-gold-500"
                   />
                   <img
-                    src={book.coverUrl}
+                    src={item.coverUrl}
                     alt=""
                     className={`h-20 w-14 shrink-0 rounded object-cover transition-opacity ${
                       selected ? "" : "opacity-50"
                     }`}
                   />
                   <div className={`min-w-0 flex-1 transition-opacity ${selected ? "" : "opacity-50"}`}>
-                    <p className="truncate font-display text-lg text-ivory">{book.title}</p>
-                    <p className="truncate text-sm text-ivory/50">{book.author}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="truncate font-display text-lg text-ivory">{item.title}</p>
+                      {template && (
+                        <span className="shrink-0 rounded-full border border-gold-500/30 bg-gold-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-gold-400">
+                          Template
+                        </span>
+                      )}
+                    </div>
+                    {subtitle && <p className="truncate text-sm text-ivory/50">{subtitle}</p>}
                     {!selected && <p className="mt-0.5 text-xs text-gold-400">Saved for later</p>}
                   </div>
                   <span className={`text-gold-400 ${selected ? "" : "opacity-50"}`}>
-                    ${book.price.toFixed(2)}
+                    {item.isFree ? "Free" : `$${item.price.toFixed(2)}`}
                   </span>
                   <button
-                    onClick={() => removeItem(book._id)}
+                    onClick={() => removeItem(item._id)}
                     className="text-sm text-ivory/40 hover:text-red-400"
                   >
                     Remove
@@ -183,13 +204,13 @@ export default function Cart() {
             <span className="font-display text-xl text-ivory">Total: ${total.toFixed(2)}</span>
             {hasSelection && (
               <span className="text-sm text-ivory/50">
-                {selectedItems.length} {selectedItems.length === 1 ? "book" : "books"}
+                {selectedItems.length} {selectedItems.length === 1 ? "item" : "items"}
               </span>
             )}
           </div>
 
           {!hasSelection ? (
-            <p className="text-sm text-ivory/50">Tick at least one book to check out.</p>
+            <p className="text-sm text-ivory/50">Tick at least one item to check out.</p>
           ) : !user ? (
             <button
               onClick={() => navigate("/login")}

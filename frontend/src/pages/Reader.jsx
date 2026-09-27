@@ -9,6 +9,11 @@ export default function Reader() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    // Without this, navigating here from a scrolled-down position on the
+    // book detail page leaves this page rendered at that same scroll
+    // offset instead of starting at the top.
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+
     api
       .get(`/books/${id}/access`)
       .then(({ data }) => setAccess(data))

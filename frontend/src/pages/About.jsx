@@ -1,40 +1,39 @@
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 export default function About() {
+  const { t } = useTranslation();
+
   return (
     <div className="mx-auto max-w-3xl px-6 py-16">
-      <h1 className="font-display text-4xl text-ivory">About Adyoolau</h1>
+      <Link to="/" className="text-sm text-ivory/50 hover:text-ivory">
+        {t("about.backHome")}
+      </Link>
+
+      <h1 className="mt-6 font-display text-4xl text-ivory">{t("about.title")}</h1>
 
       <div className="mt-8 space-y-6 leading-relaxed text-ivory/70">
-        <p>
-          Adyoolau is a small, independent ebook shelf built for readers who want a
-          straightforward way to buy, download, and read books without noise or
-          clutter. No subscriptions, no algorithmic feeds — just titles worth your
-          time, priced fairly, and yours to keep once you buy them.
-        </p>
+        <p>{t("about.paragraph1")}</p>
 
-        <p>
-          Every book you read here can be enjoyed right in your browser, or
-          downloaded as a PDF or EPUB to keep on your own devices. We believe once
-          you've bought a book, it's yours — no DRM lock-in, no disappearing titles.
-        </p>
+        <p>{t("about.paragraph2")}</p>
 
-        <h2 className="font-display text-2xl text-ivory pt-4">What we're about</h2>
+        <p>{t("about.paragraph3")}</p>
+
+        <h2 className="font-display text-2xl text-ivory pt-4">{t("about.whatWereAboutHeading")}</h2>
         <ul className="list-disc space-y-2 pl-5">
-          <li>A carefully curated catalog rather than an endless, unvetted marketplace</li>
-          <li>Fair, transparent pricing with no hidden subscription traps</li>
-          <li>Direct support from real people if something goes wrong</li>
-          <li>Respect for your time — clean design, no dark patterns</li>
+          <li>{t("about.bullet1")}</li>
+          <li>{t("about.bullet2")}</li>
+          <li>{t("about.bullet3")}</li>
+          <li>{t("about.bullet4")}</li>
         </ul>
 
-        <h2 className="font-display text-2xl text-ivory pt-4">Questions?</h2>
+        <h2 className="font-display text-2xl text-ivory pt-4">{t("about.questionsHeading")}</h2>
         <p>
-          We'd genuinely like to hear from you — whether it's a question about a
-          title, a technical issue, or just feedback on the site. Visit our{" "}
+          {t("about.questionsIntro")}{" "}
           <Link to="/contact" className="text-gold-400 hover:text-gold-300">
-            Contact page
+            {t("about.contactLinkLabel")}
           </Link>{" "}
-          to reach us.
+          {t("about.questionsOutro")}
         </p>
       </div>
     </div>

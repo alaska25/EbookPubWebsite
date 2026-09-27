@@ -1,37 +1,33 @@
 import { useEffect, useState, useCallback, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { InfoLink } from "./InfoModal.jsx";
 import image29342 from "./images/29342.jpg";
 import image29340 from "./images/29340.jpg";
 import image29339 from "./images/29339.jpg";
 
-const SLIDES = [
+// Slide copy now comes from translation keys (heroCarousel.slide1/2/3.*);
+// only the images and link targets stay hardcoded here.
+const SLIDE_META = [
   {
-    eyebrow: "Digital Products • Ebooks • Templates • Tools",
-    title: "A library that fits in your",
-    highlight: "pocket.",
-    body: "Adyoolau brings together fiction, nonfiction, and reference titles you can buy once and read anywhere — in the browser or downloaded for offline reading.",
-    primaryCta: { label: "Browse the Catalog", to: "/catalog" },
-    secondaryCta: { label: "Start with a Free Title", to: "/catalog?search=free" },
+    key: "slide1",
+    primaryTo: "/catalog",
+    secondaryTo: "/catalog?search=free",
     image: image29342,
+    hasNote: false,
   },
   {
-    eyebrow: "No Subscriptions",
-    title: "Buy once,",
-    highlight: "keep forever.",
-    body: "Every book is yours after purchase — no expiring licenses, no recurring fees. Download a copy to keep, or read it in the browser whenever you like.",
-    primaryCta: { label: "Browse the Catalog", to: "/catalog" },
-    secondaryCta: { label: "See our Refund Policy", to: "/refund-policy" },
+    key: "slide2",
+    primaryTo: "/catalog",
+    secondaryTo: "/refund-policy",
     image: image29339,
+    hasNote: false,
   },
   {
-    eyebrow: "New Here?",
-    title: "Try a title,",
-    highlight: "on us.",
-    body: "Not ready to commit? A handful of our titles are completely free to claim — a low-risk way to see what Adyoolau is about before you buy.",
-    primaryCta: { label: "Start with a Free Title", to: "/catalog?search=free" },
-    secondaryCta: { label: "About Adyoolau", to: "/about" },
-    note: "No credit card required.",
+    key: "slide3",
+    primaryTo: "/catalog?search=free",
+    secondaryTo: "/about",
     image: image29340,
+    hasNote: true,
   },
 ];
 
@@ -44,6 +40,7 @@ const FOCUS_RING =
 // colors so it reads over any image); "inline" is the desktop version below
 // the text, using the site's theme colors.
 function Controls({ index, count, onPrev, onNext, onGo, variant }) {
+  const { t } = useTranslation();
   const overlay = variant === "overlay";
 
   const arrowClass = overlay
@@ -60,7 +57,7 @@ function Controls({ index, count, onPrev, onNext, onGo, variant }) {
           : "flex items-center gap-4"
       }
     >
-      <button onClick={onPrev} aria-label="Previous slide" className={`${arrowClass} ${FOCUS_RING}`}>
+      <button onClick={onPrev} aria-label={t("heroCarousel.prevSlide")} className={`${arrowClass} ${FOCUS_RING}`}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
           <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
         </svg>
@@ -71,7 +68,7 @@ function Controls({ index, count, onPrev, onNext, onGo, variant }) {
           <button
             key={i}
             onClick={() => onGo(i)}
-            aria-label={`Go to slide ${i + 1}`}
+            aria-label={t("heroCarousel.goToSlide", { number: i + 1 })}
             aria-current={i === index}
             // Padding makes the tap target ~24px tall while the dot stays 8px
             className={`group rounded-full px-1 py-2 ${FOCUS_RING}`}
@@ -83,7 +80,7 @@ function Controls({ index, count, onPrev, onNext, onGo, variant }) {
         ))}
       </div>
 
-      <button onClick={onNext} aria-label="Next slide" className={`${arrowClass} ${FOCUS_RING}`}>
+      <button onClick={onNext} aria-label={t("heroCarousel.nextSlide")} className={`${arrowClass} ${FOCUS_RING}`}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
         </svg>
@@ -107,11 +104,25 @@ function SlideImage({ src }) {
 }
 
 export default function HeroCarousel() {
+  const { t } = useTranslation();
   const [index, setIndex] = useState(0);
   const timerRef = useRef(null);
 
+  // Build the full slide objects (translated text + static meta) on each
+  // render so a language change immediately updates the copy.
+  const SLIDES = SLIDE_META.map((meta) => ({
+    ...meta,
+    eyebrow: t(`heroCarousel.${meta.key}.eyebrow`),
+    title: t(`heroCarousel.${meta.key}.title`),
+    highlight: t(`heroCarousel.${meta.key}.highlight`),
+    body: t(`heroCarousel.${meta.key}.body`),
+    primaryCta: { label: t(`heroCarousel.${meta.key}.primaryCta`), to: meta.primaryTo },
+    secondaryCta: { label: t(`heroCarousel.${meta.key}.secondaryCta`), to: meta.secondaryTo },
+    note: meta.hasNote ? t(`heroCarousel.${meta.key}.note`) : null,
+  }));
+
   const advance = useCallback(() => {
-    setIndex((i) => (i + 1) % SLIDES.length);
+    setIndex((i) => (i + 1) % SLIDE_META.length);
   }, []);
 
   useEffect(() => {
@@ -120,7 +131,7 @@ export default function HeroCarousel() {
   }, [advance, index]);
 
   const goTo = (i) => {
-    const nextIndex = ((i % SLIDES.length) + SLIDES.length) % SLIDES.length;
+    const nextIndex = ((i % SLIDE_META.length) + SLIDE_META.length) % SLIDE_META.length;
     setIndex(nextIndex);
   };
 
@@ -133,14 +144,10 @@ export default function HeroCarousel() {
   };
 
   return (
-    // data-theme="dark" pins this section's color tokens (bg-ink, text-ivory,
-    // border-navy-700, etc.) to their dark values regardless of the site-wide
-    // theme toggle, so the scrim over the photo stays a dark vignette instead
-    // of washing out in light mode.
-    <section
-      data-theme="dark"
-      className="relative min-h-[560px] overflow-hidden border-b border-navy-700/60 bg-ink"
-    >
+    // No local data-theme override here anymore — this section now follows
+    // whatever theme is set on <html> by ThemeContext, so the light/dark
+    // toggle applies here too instead of the hero staying pinned to dark.
+    <section className="relative min-h-[560px] overflow-hidden border-b border-navy-700/60 bg-ink">
       {/* Full-bleed background image: desktop/tablet only (md and up). */}
       <div className="absolute inset-0 hidden md:block">
         {SLIDES.map((s, i) => (
@@ -191,7 +198,7 @@ export default function HeroCarousel() {
 
               return (
                 <div
-                  key={s.title}
+                  key={s.key}
                   className={`col-start-1 row-start-1 transition-[opacity,visibility,transform] duration-500 motion-reduce:transition-none ${
                     isActive
                       ? "visible translate-y-0 opacity-100"

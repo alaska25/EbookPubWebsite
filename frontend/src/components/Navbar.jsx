@@ -1,16 +1,28 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useCart } from "../context/CartContext.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
+import { useAuthModal } from "../context/AuthModalContext.jsx";
 import logo from "../assets/logo.png";
 
+const LANGUAGES = [
+  { code: "en", label: "EN", flag: "🇺🇸", name: "English" },
+  { code: "es", label: "ES", flag: "🇪🇸", name: "Español" },
+  { code: "pt", label: "PT", flag: "🇧🇷", name: "Português" },
+  { code: "ja", label: "JA", flag: "🇯🇵", name: "日本語" },
+];
+
 export default function Navbar() {
+  const { t, i18n } = useTranslation();
   const { user, logout, isAdmin } = useAuth();
   const { items } = useCart();
   const { theme, toggleTheme } = useTheme();
+  const { openLogin } = useAuthModal();
   const [query, setQuery] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [langMenuOpen, setLangMenuOpen] = useState(false);
   const navigate = useNavigate();
 
   const handleSearch = (e) => {
@@ -18,6 +30,16 @@ export default function Navbar() {
     navigate(query.trim() ? `/catalog?search=${encodeURIComponent(query.trim())}` : "/catalog");
     setMenuOpen(false);
   };
+
+  const changeLanguage = (code) => {
+    i18n.changeLanguage(code);
+    setLangMenuOpen(false);
+    setMenuOpen(false);
+  };
+
+  const currentLang = LANGUAGES.find((l) => l.code === i18n.language)
+    ?? LANGUAGES.find((l) => i18n.language?.startsWith(l.code))
+    ?? LANGUAGES[0];
 
   return (
     <header className="sticky top-0 z-40 border-b border-navy-700/60 bg-ink/95 backdrop-blur">
@@ -36,7 +58,7 @@ export default function Navbar() {
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search titles, authors, subjects..."
+              placeholder={t("nav.searchPlaceholder")}
               className="w-full max-w-md rounded-full border border-navy-700 bg-navy-900 px-4 py-2 text-sm text-ivory placeholder:text-ivory/40 focus:border-gold-500"
             />
           </form>
@@ -44,6 +66,59 @@ export default function Navbar() {
 
         {/* Desktop nav: unchanged, just hidden below md: */}
         <nav className="ml-auto hidden items-center gap-5 text-sm md:flex">
+          {/* Language switcher */}
+          <div className="relative">
+            <button
+              onClick={() => setLangMenuOpen((v) => !v)}
+              onBlur={() => setTimeout(() => setLangMenuOpen(false), 150)}
+              aria-label="Change language"
+              aria-haspopup="listbox"
+              aria-expanded={langMenuOpen}
+              className="flex items-center gap-1.5 rounded-full border border-navy-700 py-1.5 pl-3 pr-2.5 text-sm text-ivory/80 hover:border-gold-500/60"
+            >
+              <span className="text-base leading-none">{currentLang.flag}</span>
+              <span className="text-xs font-medium tracking-wide text-ivory/60">{currentLang.label}</span>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className={`h-3 w-3 text-ivory/40 transition-transform ${langMenuOpen ? "rotate-180" : ""}`}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
+              </svg>
+            </button>
+            {langMenuOpen && (
+              <div
+                role="listbox"
+                className="absolute right-0 top-full z-50 mt-2 w-44 overflow-hidden rounded-xl border border-navy-700 bg-navy-900 py-1 shadow-xl shadow-black/40"
+              >
+                {LANGUAGES.map((lang) => {
+                  const active = i18n.language === lang.code || i18n.language?.startsWith(lang.code);
+                  return (
+                    <button
+                      key={lang.code}
+                      role="option"
+                      aria-selected={active}
+                      onMouseDown={() => changeLanguage(lang.code)}
+                      className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors hover:bg-navy-700/50 ${
+                        active ? "text-gold-400" : "text-ivory/80"
+                      }`}
+                    >
+                      <span className="text-base leading-none">{lang.flag}</span>
+                      <span className="flex-1">{lang.name}</span>
+                      {active && (
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="h-3.5 w-3.5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           <button
             onClick={toggleTheme}
             aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
@@ -60,15 +135,18 @@ export default function Navbar() {
             )}
           </button>
           {!isAdmin && (
-            <Link to="/catalog" className="text-ivory/80 hover:text-gold-400">Catalog</Link>
+            <Link to="/catalog" className="text-ivory/80 hover:text-gold-400">{t("nav.catalog")}</Link>
+          )}
+          {!isAdmin && (
+            <Link to="/templates" className="text-ivory/80 hover:text-gold-400">{t("nav.templates")}</Link>
           )}
           {user && !isAdmin && (
-            <Link to="/library" className="text-ivory/80 hover:text-gold-400">My Library</Link>
+            <Link to="/library" className="text-ivory/80 hover:text-gold-400">{t("nav.myLibrary")}</Link>
           )}
-          {isAdmin && <Link to="/admin" className="text-ivory/80 hover:text-gold-400">Admin</Link>}
+          {isAdmin && <Link to="/admin" className="text-ivory/80 hover:text-gold-400">{t("nav.admin")}</Link>}
           {!isAdmin && (
             <Link to="/cart" data-cart-target className="relative text-ivory/80 hover:text-gold-400">
-              Cart
+              {t("nav.cart")}
               {items.length > 0 && (
                 <span className="absolute -right-3 -top-2 rounded-full bg-gold-500 px-1.5 text-[11px] font-semibold text-ink">
                   {items.length}
@@ -77,11 +155,14 @@ export default function Navbar() {
             </Link>
           )}
           {user ? (
-            <button onClick={logout} className="text-ivory/80 hover:text-gold-400">Log out</button>
+            <button onClick={logout} className="text-ivory/80 hover:text-gold-400">{t("nav.logOut")}</button>
           ) : (
-            <Link to="/login" className="rounded-full border border-gold-500 px-4 py-1.5 text-gold-400 hover:bg-gold-500 hover:text-ink">
-              Sign in
-            </Link>
+            <button
+              onClick={openLogin}
+              className="rounded-full border border-gold-500 px-4 py-1.5 text-gold-400 hover:bg-gold-500 hover:text-ink"
+            >
+              {t("nav.signIn")}
+            </button>
           )}
         </nav>
 
@@ -125,12 +206,36 @@ export default function Navbar() {
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search titles, authors, subjects..."
+                placeholder={t("nav.searchPlaceholder")}
                 className="w-full rounded-full border border-navy-700 bg-navy-900 px-4 py-2 text-sm text-ivory placeholder:text-ivory/40 focus:border-gold-500"
               />
             </form>
           )}
           <div className="flex flex-col gap-4 text-sm">
+            {/* Language switcher (mobile) */}
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium uppercase tracking-wide text-ivory/40">{t("nav.language")}</span>
+              <div className="flex items-center gap-2">
+                {LANGUAGES.map((lang) => {
+                  const active = i18n.language === lang.code || i18n.language?.startsWith(lang.code);
+                  return (
+                    <button
+                      key={lang.code}
+                      onClick={() => changeLanguage(lang.code)}
+                      className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium ${
+                        active
+                          ? "border-gold-500 text-gold-400"
+                          : "border-navy-700 text-ivory/70"
+                      }`}
+                    >
+                      <span className="text-base leading-none">{lang.flag}</span>
+                      <span>{lang.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             <button
               onClick={() => { toggleTheme(); }}
               className="flex items-center gap-2 text-ivory/80"
@@ -138,24 +243,26 @@ export default function Navbar() {
               {theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
             </button>
             {!isAdmin && (
-              <Link to="/catalog" onClick={() => setMenuOpen(false)} className="text-ivory/80">Catalog</Link>
+              <Link to="/catalog" onClick={() => setMenuOpen(false)} className="text-ivory/80">{t("nav.catalog")}</Link>
+            )}
+            {!isAdmin && (
+              <Link to="/templates" onClick={() => setMenuOpen(false)} className="text-ivory/80">{t("nav.templates")}</Link>
             )}
             {user && !isAdmin && (
-              <Link to="/library" onClick={() => setMenuOpen(false)} className="text-ivory/80">My Library</Link>
+              <Link to="/library" onClick={() => setMenuOpen(false)} className="text-ivory/80">{t("nav.myLibrary")}</Link>
             )}
-            {isAdmin && <Link to="/admin" onClick={() => setMenuOpen(false)} className="text-ivory/80">Admin</Link>}
+            {isAdmin && <Link to="/admin" onClick={() => setMenuOpen(false)} className="text-ivory/80">{t("nav.admin")}</Link>}
             {user ? (
               <button onClick={() => { logout(); setMenuOpen(false); }} className="text-left text-ivory/80">
-                Log out
+                {t("nav.logOut")}
               </button>
             ) : (
-              <Link
-                to="/login"
-                onClick={() => setMenuOpen(false)}
+              <button
+                onClick={() => { openLogin(); setMenuOpen(false); }}
                 className="w-fit rounded-full border border-gold-500 px-4 py-1.5 text-gold-400"
               >
-                Sign in
-              </Link>
+                {t("nav.signIn")}
+              </button>
             )}
           </div>
         </div>

@@ -1,25 +1,30 @@
+import { useTranslation } from "react-i18next";
 import { InfoLink, InfoModalHost } from "./InfoModal.jsx";
 import Reveal from "./Reveal.jsx";
 
+// Headings + link labels now come from translation keys; only the
+// route targets and grouping structure stay hardcoded here.
 const LINK_GROUPS = [
   {
-    heading: "Company",
+    headingKey: "footer.company",
     links: [
-      { label: "About", to: "/about" },
-      { label: "Contact", to: "/contact" },
+      { labelKey: "footer.about", to: "/about" },
+      { labelKey: "footer.contact", to: "/contact" },
     ],
   },
   {
-    heading: "Support",
+    headingKey: "footer.support",
     links: [
-      { label: "Refund Policy", to: "/refund-policy" },
-      { label: "Terms of Service", to: "/terms" },
-      { label: "Privacy Policy", to: "/privacy-policy" },
+      { labelKey: "footer.refundPolicy", to: "/refund-policy" },
+      { labelKey: "footer.termsOfService", to: "/terms" },
+      { labelKey: "footer.privacyPolicy", to: "/privacy-policy" },
     ],
   },
 ];
 
 export default function Footer() {
+  const { t } = useTranslation();
+
   return (
     <footer className="relative mt-16 overflow-hidden border-t border-navy-700/60 bg-navy-900">
       <div
@@ -52,16 +57,15 @@ export default function Footer() {
           <div>
             <p className="font-display text-2xl text-ivory">Adyoolau</p>
             <p className="mt-3 max-w-sm leading-relaxed text-ivory/60">
-              A quiet shelf for serious readers — buy, download, or read your
-              next book right in the browser.
+              {t("footer.tagline")}
             </p>
           </div>
 
           {/* Link columns */}
           {LINK_GROUPS.map((group) => (
-            <div key={group.heading}>
+            <div key={group.headingKey}>
               <p className="font-display text-xs uppercase tracking-widest text-gold-400">
-                {group.heading}
+                {t(group.headingKey)}
               </p>
               <nav className="mt-4 flex flex-col gap-3">
                 {group.links.map((link) => (
@@ -70,7 +74,7 @@ export default function Footer() {
                     to={link.to}
                     className="text-ivory/70 transition-colors hover:text-gold-400"
                   >
-                    {link.label}
+                    {t(link.labelKey)}
                   </InfoLink>
                 ))}
               </nav>
@@ -84,7 +88,7 @@ export default function Footer() {
           className="mt-12 flex flex-col items-start gap-4 border-t border-navy-700/60 pt-6 sm:flex-row sm:items-center sm:justify-between"
         >
           <p className="text-ivory/50">
-            &copy; {new Date().getFullYear()} Adyoolau. All rights reserved.
+            {t("footer.copyright", { year: new Date().getFullYear() })}
           </p>
         </Reveal>
       </div>

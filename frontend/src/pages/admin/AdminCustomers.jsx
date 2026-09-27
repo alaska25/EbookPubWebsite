@@ -29,11 +29,14 @@ export default function AdminCustomers() {
     };
   }, []);
 
-  const handleStatusToggle = async (userId, currentlyActive) => {
+  const handleStatusToggle = async (userId, currentlyActive, name) => {
+    const nextActive = !currentlyActive;
+    const verb = nextActive ? "Reactivate" : "Deactivate";
+    if (!confirm(`${verb} ${name}'s account?`)) return;
+
     setError("");
     setSavingId(userId);
     const prevUsers = users;
-    const nextActive = !currentlyActive;
     setUsers((prev) => prev.map((u) => (u._id === userId ? { ...u, isActive: nextActive } : u)));
 
     try {
@@ -75,7 +78,7 @@ export default function AdminCustomers() {
               </div>
 
               <button
-                onClick={() => handleStatusToggle(u._id, active)}
+                onClick={() => handleStatusToggle(u._id, active, u.name)}
                 disabled={savingId === u._id}
                 className={`shrink-0 rounded-full border px-3 py-1.5 text-sm transition-colors disabled:opacity-50 ${
                   active
