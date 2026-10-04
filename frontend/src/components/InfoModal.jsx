@@ -1,5 +1,5 @@
-import { lazy, Suspense, useEffect, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { createContext, lazy, Suspense, useContext, useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import Modal from "./Modal.jsx";
 
 // Pages that open as a modal. Adjust these import paths and filenames to
@@ -24,6 +24,12 @@ const PAGES = {
 // navigation.
 let openHandler = null;
 
+// Lets page content (About.jsx, Contact.jsx, ...) know whether it's being
+// rendered inside the modal, and if so, how to close it. When a page is
+// visited directly (no host mounted, or opened outside the modal flow),
+// this is null and BackHome falls back to a real navigation.
+const InfoModalContext = createContext(null);
+
 /**
  * Mount ONCE (the Footer does this). Renders the modal and listens for
  * InfoLink clicks from anywhere on the page.
@@ -34,6 +40,8 @@ export function InfoModalHost() {
   const [active, setActive] = useState(null);
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
+
+  const close = () => setOpen(false);
 
   useEffect(() => {
     openHandler = (to) => {
@@ -48,7 +56,10 @@ export function InfoModalHost() {
     };
   }, []);
 
-  // If something inside the modal navigates elsewhere, close it.
+  // If something inside the modal navigates to a genuinely different page,
+  // close it. (Closing "Back home" itself no longer depends on this — see
+  // the context below — but this still covers e.g. clicking a real link
+  // inside the page content to some other route.)
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
@@ -56,10 +67,12 @@ export function InfoModalHost() {
   const ActiveContent = active?.component;
 
   return (
-    <Modal open={open} onClose={() => setOpen(false)} title={active?.label}>
-      <Suspense fallback={<p className="text-ivory/60">Loading…</p>}>
-        {ActiveContent && <ActiveContent />}
-      </Suspense>
+    <Modal open={open} onClose={close} title={active?.label}>
+      <InfoModalContext.Provider value={{ close }}>
+        <Suspense fallback={<p className="text-ivory/60">Loading…</p>}>
+          {ActiveContent && <ActiveContent />}
+        </Suspense>
+      </InfoModalContext.Provider>
     </Modal>
   );
 }
@@ -77,4 +90,33 @@ export function InfoLink({ to, onClick, ...props }) {
   };
 
   return <Link to={to} onClick={handleClick} {...props} />;
+}
+
+/**
+ * Drop this into About.jsx, Contact.jsx, etc. in place of a hardcoded
+ * `<Link to="/">← Back home</Link>`.
+ *
+ * Inside the modal, it closes the modal directly — this is the fix: a plain
+ * <Link to="/"> does nothing when you're already on "/", which is exactly
+ * what happens when these pages are opened from the footer on the homepage.
+ * Outside the modal (page visited directly at its own URL, if your router
+ * also registers one), it falls back to a real navigation to "/".
+ */
+export function BackHome({ children = "← Back home", className }) {
+  const modal = useContext(InfoModalContext);
+  const navigate = useNavigate();
+
+  if (modal) {
+    return (
+      <button type="button" onClick={modal.close} className={className}>
+        {children}
+      </button>
+    );
+  }
+
+  return (
+    <Link to="/" onClick={() => navigate("/")} className={className}>
+      {children}
+    </Link>
+  );
 }

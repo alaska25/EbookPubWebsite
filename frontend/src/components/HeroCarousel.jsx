@@ -1,11 +1,13 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { InfoLink } from "./InfoModal.jsx";
+// TIP: convert these to .webp (see scripts/compress-images.mjs) and change
+// the extensions below, e.g. "./images/29342.webp".
 import image29342 from "./images/29342.jpg";
 import image29340 from "./images/29340.jpg";
 import image29339 from "./images/29339.jpg";
 
-// Slide copy now comes from translation keys (heroCarousel.slide1/2/3.*);
+// Slide copy comes from translation keys (heroCarousel.slide1/2/3.*);
 // only the images and link targets stay hardcoded here.
 const SLIDE_META = [
   {
@@ -36,16 +38,17 @@ const AUTO_ADVANCE_MS = 6500;
 const FOCUS_RING =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold-400";
 
-// Arrows + dots. "overlay" sits on top of the mobile photo (fixed white
-// colors so it reads over any image); "inline" is the desktop version below
-// the text, using the site's theme colors.
+// Arrows + dots. "overlay" sits on top of the mobile photo; "inline" is the
+// desktop version below the text, using the site's theme colors.
+// (backdrop-blur removed: it re-blurs every frame during the crossfade and
+// is a common cause of stutter on phones and older laptops.)
 function Controls({ index, count, onPrev, onNext, onGo, variant }) {
   const { t } = useTranslation();
   const overlay = variant === "overlay";
 
   const arrowClass = overlay
     ? "rounded-full p-2 text-white/90 hover:text-white"
-    : "rounded-full border border-ivory/30 bg-ink/50 p-2 text-ivory/70 backdrop-blur-sm hover:border-gold-500 hover:text-gold-400";
+    : "rounded-full border border-ivory/30 bg-ink/80 p-2 text-ivory/70 hover:border-gold-500 hover:text-gold-400";
   const dotOn = overlay ? "w-6 bg-white" : "w-6 bg-gold-500";
   const dotOff = overlay ? "w-2 bg-white/50" : "w-2 bg-ivory/30 group-hover:bg-ivory/50";
 
@@ -53,7 +56,7 @@ function Controls({ index, count, onPrev, onNext, onGo, variant }) {
     <div
       className={
         overlay
-          ? "flex items-center gap-1 rounded-full bg-black/40 px-1.5 text-white backdrop-blur-md"
+          ? "flex items-center gap-1 rounded-full bg-black/55 px-1.5 text-white"
           : "flex items-center gap-4"
       }
     >
@@ -90,14 +93,16 @@ function Controls({ index, count, onPrev, onNext, onGo, variant }) {
 }
 
 // Renders the photo in full, uncropped, contained entirely within the box.
-// No oversized/blurred duplicate layer — nothing ever renders past the
-// box's own edges. Empty letterboxed space (top/bottom on wide images,
-// sides on tall ones) shows the section's own dark background.
-function SlideImage({ src }) {
+// The first slide loads eagerly with high priority (it's the page's LCP
+// image); the others are lazy so they don't compete for bandwidth.
+function SlideImage({ src, first }) {
   return (
     <img
       src={src}
       alt=""
+      decoding="async"
+      loading={first ? "eager" : "lazy"}
+      fetchpriority={first ? "high" : "auto"}
       className="absolute inset-0 h-full w-full object-contain object-center bg-ink"
     />
   );
@@ -106,6 +111,7 @@ function SlideImage({ src }) {
 export default function HeroCarousel() {
   const { t } = useTranslation();
   const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
   const timerRef = useRef(null);
 
   // Build the full slide objects (translated text + static meta) on each
@@ -126,9 +132,15 @@ export default function HeroCarousel() {
   }, []);
 
   useEffect(() => {
-    timerRef.current = setInterval(advance, AUTO_ADVANCE_MS);
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (paused || reduceMotion) return;
+
+    timerRef.current = setInterval(() => {
+      // Don't churn through slides in a background tab.
+      if (!document.hidden) advance();
+    }, AUTO_ADVANCE_MS);
     return () => clearInterval(timerRef.current);
-  }, [advance, index]);
+  }, [advance, index, paused]);
 
   const goTo = (i) => {
     const nextIndex = ((i % SLIDE_META.length) + SLIDE_META.length) % SLIDE_META.length;
@@ -144,10 +156,15 @@ export default function HeroCarousel() {
   };
 
   return (
-    // No local data-theme override here anymore — this section now follows
-    // whatever theme is set on <html> by ThemeContext, so the light/dark
-    // toggle applies here too instead of the hero staying pinned to dark.
-    <section className="relative min-h-[560px] overflow-hidden border-b border-navy-700/60 bg-ink">
+    // Pause autoplay while the pointer is over the hero or keyboard focus is
+    // inside it (also an accessibility requirement for auto-moving content).
+    <section
+      className="relative min-h-[560px] overflow-hidden border-b border-navy-700/60 bg-ink"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocus={() => setPaused(true)}
+      onBlur={() => setPaused(false)}
+    >
       {/* Full-bleed background image: desktop/tablet only (md and up). */}
       <div className="absolute inset-0 hidden md:block">
         {SLIDES.map((s, i) => (
@@ -157,7 +174,7 @@ export default function HeroCarousel() {
               i === index ? "opacity-100" : "opacity-0"
             }`}
           >
-            <SlideImage src={s.image} />
+            <SlideImage src={s.image} first={i === 0} />
           </div>
         ))}
         {/* Scrim is near-opaque under the text column so lettering baked into
@@ -167,9 +184,7 @@ export default function HeroCarousel() {
 
       <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-6 pb-12 pt-6 md:min-h-[560px] md:grid-cols-[1.2fr,1fr] md:py-20">
         <div>
-          {/* MOBILE: photo first, with the arrows and dots overlaid on it so
-              they're visible without scrolling. Any extra height from the
-              taller slides ends up as space at the bottom of the hero. */}
+          {/* MOBILE: photo first, with the arrows and dots overlaid on it. */}
           <div className="relative mb-6 h-56 overflow-hidden rounded-2xl shadow-lg ring-1 ring-black/5 sm:h-72 md:hidden">
             {SLIDES.map((s, i) => (
               <div
@@ -178,7 +193,7 @@ export default function HeroCarousel() {
                   i === index ? "opacity-100" : "opacity-0"
                 }`}
               >
-                <SlideImage src={s.image} />
+                <SlideImage src={s.image} first={i === 0} />
               </div>
             ))}
             <div className="absolute inset-x-0 bottom-3 flex justify-center">
@@ -207,7 +222,7 @@ export default function HeroCarousel() {
                 >
                   {/* Eyebrow: rounded-3xl (not -full) so a wrapped two-line
                       label on phones doesn't turn into a blob */}
-                  <p className="inline-flex max-w-full items-center gap-2 rounded-3xl border border-ivory/15 bg-ivory/5 px-3 py-1.5 text-xs font-medium text-ivory/80 backdrop-blur-sm">
+                  <p className="inline-flex max-w-full items-center gap-2 rounded-3xl border border-ivory/15 bg-ivory/5 px-3 py-1.5 text-xs font-medium text-ivory/80">
                     <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-gold-500" />
                     {s.eyebrow}
                   </p>

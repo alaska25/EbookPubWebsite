@@ -26,6 +26,10 @@ function loadGoogleScript() {
   return scriptPromise;
 }
 
+// onSuccess receives the same `data` shape login()/register() resolve with
+// (see authResponse() on the backend: _id, name, email, role, photoUrl,
+// token), so callers like LoginForm's handleAuthSuccess(data) can read
+// data.role right away instead of getting undefined.
 export default function GoogleLoginButton({ onSuccess, onError }) {
   const buttonRef = useRef(null);
   const { googleLogin } = useAuth();
@@ -62,8 +66,8 @@ export default function GoogleLoginButton({ onSuccess, onError }) {
           client_id: clientId,
           callback: async (response) => {
             try {
-              await googleLogin(response.credential);
-              onSuccessRef.current?.();
+              const data = await googleLogin(response.credential);
+              onSuccessRef.current?.(data);
             } catch (err) {
               onErrorRef.current?.(err.response?.data?.message || "Could not sign in with Google.");
             }

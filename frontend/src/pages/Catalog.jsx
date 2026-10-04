@@ -112,7 +112,7 @@ export default function Catalog() {
           <div className="mt-10 grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 md:grid-cols-4">
             {books.map((book, i) => (
               <Reveal key={book._id} delay={Math.min(i * 50, 400)}>
-                <BookCard book={book} />
+                <BookCard book={book} showAddToCart />
               </Reveal>
             ))}
           </div>

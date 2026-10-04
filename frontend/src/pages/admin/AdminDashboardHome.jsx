@@ -23,11 +23,21 @@ const STATUS_COLORS = {
   failed: "#F87171",
 };
 
-const formatMoney = (n) => `$${Number(n).toFixed(2)}`;
+const SOURCE_COLORS = {
+  books: "#D4A94F",
+  templates: "#60A5FA",
+};
+
+// Returns the value if it is an array, otherwise an empty array.
+// Destructuring defaults only cover `undefined`, so this also covers `null`.
+const list = (v) => (Array.isArray(v) ? v : []);
+
+const formatMoney = (n) => `$${Number(n || 0).toFixed(2)}`;
 
 const formatShortDate = (isoDate) => {
-  const [, m, d] = isoDate.split("-");
-  return `${m}/${d}`;
+  const parts = String(isoDate ?? "").split("-");
+  if (parts.length < 3) return String(isoDate ?? "");
+  return `${parts[1]}/${parts[2]}`;
 };
 
 function SectionCard({ title, eyebrow, children, className = "" }) {
@@ -70,16 +80,18 @@ function ChartTooltip({ active, payload, label, formatter }) {
   );
 }
 
-function TopBooksList({ books }) {
-  const maxUnits = Math.max(...books.map((b) => b.unitsSold), 1);
+// Generic "ranked list with a bar" — used for both top books and top
+// templates, since both shapes are just { title, unitsSold }.
+function TopSellersList({ items }) {
+  const maxUnits = Math.max(...items.map((b) => b.unitsSold || 0), 1);
 
   return (
     <div className="space-y-3">
-      {books.slice(0, 5).map((book, i) => {
-        const pct = (book.unitsSold / maxUnits) * 100;
+      {items.slice(0, 5).map((item, i) => {
+        const pct = ((item.unitsSold || 0) / maxUnits) * 100;
         const isTop = i === 0;
         return (
-          <div key={book.title} className="flex items-center gap-4">
+          <div key={item.title} className="flex items-center gap-4">
             <span
               className={`w-5 shrink-0 text-center font-display text-sm ${
                 isTop ? "text-gold-400" : "text-ivory/30"
@@ -90,9 +102,9 @@ function TopBooksList({ books }) {
 
             <div className="min-w-0 flex-1">
               <div className="mb-1 flex items-center justify-between gap-2">
-                <p className="truncate text-sm text-ivory">{book.title}</p>
+                <p className="truncate text-sm text-ivory">{item.title}</p>
                 <p className={`shrink-0 text-sm font-medium ${isTop ? "text-gold-400" : "text-ivory/60"}`}>
-                  {book.unitsSold} sold
+                  {item.unitsSold || 0} sold
                 </p>
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-navy-800">
@@ -109,12 +121,65 @@ function TopBooksList({ books }) {
         );
       })}
 
-      {books.length > 5 && (
-        <button className="mt-2 text-xs text-gold-400/80 hover:text-gold-400">
-          View all {books.length} →
-        </button>
+      {items.length > 5 && (
+        <p className="mt-2 text-xs text-ivory/40">Showing top 5 of {items.length}</p>
       )}
     </div>
+  );
+}
+
+// Generic small donut chart with a legend — used for both Order Status
+// (by count) and Revenue Split (by amount).
+function DonutBreakdown({ data, dataKey, nameKey, colors, centerLabel, centerValue, tooltipFormatter }) {
+  const total = data.reduce((sum, d) => sum + (d[dataKey] || 0), 0) || 1;
+
+  return (
+    <>
+      <div className="relative mx-auto h-40 w-40">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={data}
+              dataKey={dataKey}
+              nameKey={nameKey}
+              innerRadius={52}
+              outerRadius={72}
+              paddingAngle={3}
+              stroke="none"
+            >
+              {data.map((d) => (
+                <Cell key={d[nameKey]} fill={colors[d[nameKey]] || GOLD} />
+              ))}
+            </Pie>
+            <Tooltip content={<ChartTooltip formatter={tooltipFormatter} />} />
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+          <p className="font-display text-lg text-ivory">{centerValue}</p>
+          <p className="text-[10px] uppercase tracking-widest text-ivory/40">{centerLabel}</p>
+        </div>
+      </div>
+
+      <div className="mt-6 space-y-2.5">
+        {data.map((d) => {
+          const pct = Math.round(((d[dataKey] || 0) / total) * 100);
+          return (
+            <div key={d[nameKey]} className="flex items-center justify-between text-xs">
+              <span className="flex items-center gap-2 capitalize text-ivory/70">
+                <span
+                  className="h-2 w-2 rounded-full"
+                  style={{ backgroundColor: colors[d[nameKey]] || GOLD }}
+                />
+                {d[nameKey]}
+              </span>
+              <span className="text-ivory/45">
+                {tooltipFormatter ? tooltipFormatter(d[dataKey] || 0) : d[dataKey] || 0} · {pct}%
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </>
   );
 }
 
@@ -149,9 +214,19 @@ export default function AdminDashboardHome() {
   if (error) return <p className="text-sm text-red-400">{error}</p>;
   if (!stats) return null;
 
-  const { totals, revenueByDay, userGrowthByDay, topBooks, orderStatus } = stats;
-  const totalOrderCount = orderStatus.reduce((sum, s) => sum + s.count, 0) || 1;
-  const totalSignups = userGrowthByDay.reduce((sum, d) => sum + d.count, 0);
+  // Every field is normalised so a missing or null value from the API
+  // (for example an older backend without `revenueSplit`) cannot crash the page.
+  const totals = stats.totals || {};
+  const revenueByDay = list(stats.revenueByDay);
+  const userGrowthByDay = list(stats.userGrowthByDay);
+  const topBooks = list(stats.topBooks);
+  const topTemplates = list(stats.topTemplates);
+  const orderStatus = list(stats.orderStatus);
+  const revenueSplit = list(stats.revenueSplit);
+
+  const totalOrderCount = orderStatus.reduce((sum, s) => sum + (s.count || 0), 0) || 1;
+  const totalSignups = userGrowthByDay.reduce((sum, d) => sum + (d.count || 0), 0);
+  const hasRevenueSplit = revenueSplit.some((s) => s.revenue > 0);
 
   return (
     <div className="space-y-5">
@@ -162,9 +237,9 @@ export default function AdminDashboardHome() {
             <p className="mt-1 text-xs text-ivory/40">Paid orders, all time</p>
 
             <div className="mt-8 flex gap-6">
-              <StatItem label="Orders" value={totals.totalOrders} />
-              <StatItem label="Active Users" value={totals.activeUsers} />
-              <StatItem label="Books Listed" value={totals.totalBooks} />
+              <StatItem label="Orders" value={totals.totalOrders ?? 0} />
+              <StatItem label="Active Users" value={totals.activeUsers ?? 0} />
+              <StatItem label="Books Listed" value={totals.totalBooks ?? 0} />
             </div>
           </div>
 
@@ -203,7 +278,7 @@ export default function AdminDashboardHome() {
       </SectionCard>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-        <SectionCard eyebrow="Last 30 Days" title="New Signups" className="lg:col-span-2">
+        <SectionCard eyebrow="Last 30 Days" title="New Signups">
           <p className="mb-4 font-display text-2xl text-ivory">
             {totalSignups}
             <span className="ml-2 text-xs font-normal text-ivory/40">new members</span>
@@ -254,63 +329,52 @@ export default function AdminDashboardHome() {
           {orderStatus.length === 0 ? (
             <p className="py-8 text-center text-sm text-ivory/40">No orders yet.</p>
           ) : (
-            <>
-              <div className="relative mx-auto h-40 w-40">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={orderStatus}
-                      dataKey="count"
-                      nameKey="status"
-                      innerRadius={52}
-                      outerRadius={72}
-                      paddingAngle={3}
-                      stroke="none"
-                    >
-                      {orderStatus.map((s) => (
-                        <Cell key={s.status} fill={STATUS_COLORS[s.status] || GOLD} />
-                      ))}
-                    </Pie>
-                    <Tooltip content={<ChartTooltip formatter={(v) => `${v} orders`} />} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                  <p className="font-display text-2xl text-ivory">{totalOrderCount}</p>
-                  <p className="text-[10px] uppercase tracking-widest text-ivory/40">Orders</p>
-                </div>
-              </div>
+            <DonutBreakdown
+              data={orderStatus}
+              dataKey="count"
+              nameKey="status"
+              colors={STATUS_COLORS}
+              centerLabel="Orders"
+              centerValue={totalOrderCount}
+              tooltipFormatter={(v) => `${v} orders`}
+            />
+          )}
+        </SectionCard>
 
-              <div className="mt-6 space-y-2.5">
-                {orderStatus.map((s) => {
-                  const pct = Math.round((s.count / totalOrderCount) * 100);
-                  return (
-                    <div key={s.status} className="flex items-center justify-between text-xs">
-                      <span className="flex items-center gap-2 capitalize text-ivory/70">
-                        <span
-                          className="h-2 w-2 rounded-full"
-                          style={{ backgroundColor: STATUS_COLORS[s.status] || GOLD }}
-                        />
-                        {s.status}
-                      </span>
-                      <span className="text-ivory/45">
-                        {s.count} · {pct}%
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
+        <SectionCard eyebrow="By Product" title="Revenue Split">
+          {!hasRevenueSplit ? (
+            <p className="py-8 text-center text-sm text-ivory/40">No paid orders yet.</p>
+          ) : (
+            <DonutBreakdown
+              data={revenueSplit}
+              dataKey="revenue"
+              nameKey="source"
+              colors={SOURCE_COLORS}
+              centerLabel="Revenue"
+              centerValue={formatMoney(revenueSplit.reduce((sum, s) => sum + (s.revenue || 0), 0))}
+              tooltipFormatter={formatMoney}
+            />
           )}
         </SectionCard>
       </div>
 
-      <SectionCard eyebrow="Best Performers" title="Top-Selling Books">
-        {topBooks.length === 0 ? (
-          <p className="py-8 text-center text-sm text-ivory/40">No paid orders yet.</p>
-        ) : (
-          <TopBooksList books={topBooks} />
-        )}
-      </SectionCard>
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <SectionCard eyebrow="Best Performers" title="Top-Selling Books">
+          {topBooks.length === 0 ? (
+            <p className="py-8 text-center text-sm text-ivory/40">No paid orders yet.</p>
+          ) : (
+            <TopSellersList items={topBooks} />
+          )}
+        </SectionCard>
+
+        <SectionCard eyebrow="Best Performers" title="Top-Selling Templates">
+          {topTemplates.length === 0 ? (
+            <p className="py-8 text-center text-sm text-ivory/40">No paid orders yet.</p>
+          ) : (
+            <TopSellersList items={topTemplates} />
+          )}
+        </SectionCard>
+      </div>
     </div>
   );
 }

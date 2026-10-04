@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import api from "../api/axios.js";
 import Reveal from "./Reveal.jsx";
@@ -12,16 +12,23 @@ export default function TemplateShowcase() {
   const [loading, setLoading] = useState(true);
   const [addedId, setAddedId] = useState(null);
   const { items, addItem } = useCart();
+  const navigate = useNavigate();
+  const addedTimerRef = useRef(null);
 
   useEffect(() => {
     api
       .get("/templates", { params: { limit: 3 } })
       .then(({ data }) => setTemplates(data.templates))
-      .catch(() => {})
+      .catch((err) => console.error("Failed to load templates:", err))
       .finally(() => setLoading(false));
+
+    return () => clearTimeout(addedTimerRef.current);
   }, []);
 
-  if (loading || templates.length === 0) return null;
+  // Reserve space while loading so the sections below don't jump down
+  // when the templates arrive.
+  if (loading) return <section className="h-[520px]" aria-hidden="true" />;
+  if (templates.length === 0) return null;
 
   const handleAddToCart = (e, template) => {
     e.preventDefault();
@@ -30,9 +37,23 @@ export default function TemplateShowcase() {
     const imgEl = e.currentTarget.closest("a")?.querySelector("img");
     flyToCart(imgEl);
 
-    addItem(template);
+    // Tag the item as a template so the cart sends it to checkout as one.
+    // Without this, checkout treats it as a book (bookIds) and create-order fails with a 400.
+    addItem({ ...template, itemType: "template" });
     setAddedId(template._id);
-    setTimeout(() => setAddedId((id) => (id === template._id ? null : id)), 1500);
+    clearTimeout(addedTimerRef.current);
+    addedTimerRef.current = setTimeout(
+      () => setAddedId((id) => (id === template._id ? null : id)),
+      1500
+    );
+  };
+
+  // Plain navigation rather than a nested <Link> — the whole card is
+  // already an <a>, and an <a> inside an <a> is invalid/unpredictable.
+  const handleViewDetails = (e, template) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigate(`/template/${template._id}`);
   };
 
   return (
@@ -61,7 +82,15 @@ export default function TemplateShowcase() {
                 to={`/template/${template._id}`}
                 className="group overflow-hidden rounded-xl border border-navy-700/60 bg-navy-900/60 transition hover:border-gold-500/50"
               >
-                <img src={template.coverUrl} alt={template.title} className="h-40 w-full object-cover" />
+                <img
+                  src={template.coverUrl}
+                  alt={template.title}
+                  loading="lazy"
+                  decoding="async"
+                  width="600"
+                  height="160"
+                  className="h-40 w-full object-cover"
+                />
                 <div className="p-5">
                   <p className="font-display text-lg text-ivory">{template.title}</p>
                   {template.tagline && <p className="mt-1 text-sm text-ivory/60">{template.tagline}</p>}
@@ -80,6 +109,14 @@ export default function TemplateShowcase() {
                       {inCart ? t("templates.inCart") : justAdded ? t("templates.added") : t("templates.addToCart")}
                     </button>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={(e) => handleViewDetails(e, template)}
+                    className="mt-3 flex w-full items-center justify-center rounded-full border border-navy-700 px-4 py-2 text-sm font-medium text-ivory/80 transition-colors hover:border-gold-500 hover:text-gold-400"
+                  >
+                    {t("templates.viewDetails", "View Details")}
+                  </button>
                 </div>
               </Link>
             );

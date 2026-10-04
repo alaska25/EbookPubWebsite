@@ -1,7 +1,11 @@
 // Fly-to-cart animation. No dependencies: uses the Web Animations API.
 //
 // Usage:
-//   flyToCart(imgElement)            // imgElement = the book cover <img>
+//   flyToCart(imgElement).then(() => addItem(book))
+//
+// Always returns a Promise that resolves when the animation has finished
+// (or immediately if it was skipped), so callers never need a matching
+// setTimeout.
 //
 // The target is any element with a `data-cart-target` attribute (put it on
 // your Cart link/icon in the navbar). If several exist (desktop + mobile
@@ -33,27 +37,25 @@ export function flyToCart(sourceImg, { duration = 750 } = {}) {
 
   if (!sourceImg) {
     console.warn("[flyToCart] No source image element was passed in.");
-    return;
+    return Promise.resolve();
   }
   if (!target) {
     console.warn(
       "[flyToCart] No visible element with data-cart-target found. Add it to the Cart link in Navbar.jsx."
     );
-    return;
+    return Promise.resolve();
   }
 
   // Respect reduced-motion: skip the flight, keep the small bump.
   if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
-    console.info("[flyToCart] 'Reduce motion' is on in your OS, so only the bump plays.");
     bump(target);
-    return;
+    return Promise.resolve();
   }
 
   const from = sourceImg.getBoundingClientRect();
   const to = target.getBoundingClientRect();
 
-  // Size the flying cover relative to the card so it looks right on small
-  // phone grids (narrow cards) and on desktop. Book-cover proportions (2:3).
+  // Size the flying cover relative to the card. Book-cover proportions (2:3).
   const thumbW = Math.round(Math.min(72, Math.max(44, from.width * 0.5)));
   const thumbH = Math.round(thumbW * 1.5);
 
@@ -62,8 +64,8 @@ export function flyToCart(sourceImg, { duration = 750 } = {}) {
   const endX = to.left + to.width / 2 - thumbW / 2;
   const endY = to.top + to.height / 2 - thumbH / 2;
 
-  // Curved (quadratic Bezier) path. The arc height scales with the distance
-  // so it never swings off the top of a short phone screen.
+  // Curved (quadratic Bezier) path. Arc height scales with distance so it
+  // never swings off the top of a short phone screen.
   const lift = Math.min(140, Math.max(60, Math.abs(startY - endY) * 0.4));
   const ctrlX = (startX + endX) / 2;
   const ctrlY = Math.min(startY, endY) - lift;
@@ -111,9 +113,13 @@ export function flyToCart(sourceImg, { duration = 750 } = {}) {
     fill: "forwards",
   });
 
-  anim.onfinish = () => {
-    ghost.remove();
-    bump(target);
-  };
-  anim.oncancel = () => ghost.remove();
+  return anim.finished
+    .then(() => {
+      ghost.remove();
+      bump(target);
+    })
+    .catch(() => {
+      // Animation was cancelled; just clean up.
+      ghost.remove();
+    });
 }

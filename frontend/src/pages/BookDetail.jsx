@@ -23,6 +23,7 @@ export default function BookDetail() {
   const [editComment, setEditComment] = useState("");
   const [addingToCart, setAddingToCart] = useState(false);
   const [claimingFree, setClaimingFree] = useState(false);
+  const [claimError, setClaimError] = useState("");
   const { user } = useAuth();
   const { items, addItem } = useCart();
   const navigate = useNavigate();
@@ -141,13 +142,18 @@ export default function BookDetail() {
   if (loading) return <p className="mx-auto max-w-6xl px-6 py-16 text-ivory/50">{t("bookDetail.loading")}</p>;
   if (!book) return <p className="mx-auto max-w-6xl px-6 py-16 text-ivory/50">{t("bookDetail.notFound")}</p>;
 
+  // A book with no reviews may come back without avgRating; treat that as 0
+  // so toFixed() and the star display can't crash the page.
+  const avgRating = book.avgRating ?? 0;
+
   const inCart = items.some((b) => b._id === book._id);
   const handleRead = () => navigate(`/read/${book._id}`);
 
   const handleAddToCart = async () => {
     setAddingToCart(true);
     try {
-      await addItem(book);
+      // Tag the item as a book so the cart never has to guess its type.
+      await addItem({ ...book, itemType: "book" });
     } finally {
       setAddingToCart(false);
     }
@@ -155,10 +161,15 @@ export default function BookDetail() {
 
   const handleGetFree = async () => {
     if (!user) return navigate("/login");
+    setClaimError("");
     setClaimingFree(true);
     try {
       await api.post(`/books/${book._id}/claim`);
       setOwned(true);
+    } catch (err) {
+      setClaimError(
+        err.response?.data?.message || t("bookDetail.errors.claimFailed", "Could not claim this book.")
+      );
     } finally {
       setClaimingFree(false);
     }
@@ -166,10 +177,35 @@ export default function BookDetail() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 pb-16 pt-8">
-      {/* Goes back to wherever the visitor came from (catalog, home
-          carousel, search…). Falls back to the catalog if the page was
-          opened directly, e.g. from a shared link. */}
-      <BackButton fallback="/catalog" className="mb-8" />
+      {/* Back goes to wherever the visitor came from (catalog, home
+          carousel, search…), falling back to the catalog if the page was
+          opened directly (e.g. a shared link). Home is a second, explicit
+          way out that's always the same destination regardless of history —
+          useful since Back's fallback here is the catalog, not "/". Placed
+          on the opposite end of the row, icon-only, so it reads as a quiet
+          secondary shortcut rather than competing with Back for attention. */}
+      <div className="mb-8 flex items-center justify-between">
+        <BackButton fallback="/catalog" />
+        <Link
+          to="/"
+          aria-label={t("bookDetail.home", "Home")}
+          title={t("bookDetail.home", "Home")}
+          className="-mr-2 inline-flex h-10 items-center gap-2 rounded-full px-2 text-ivory/70 transition-colors hover:bg-ivory/5 hover:text-gold-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold-400 sm:px-3"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            aria-hidden="true"
+            className="h-[18px] w-[18px]"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 11.5 12 4l9 7.5" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5.5 10v9a1 1 0 0 0 1 1h3.5v-5.5h4V20H17.5a1 1 0 0 0 1-1v-9" />
+          </svg>
+          <span className="hidden text-sm sm:inline">{t("bookDetail.home", "Home")}</span>
+        </Link>
+      </div>
 
       {/* Top Section: Main Book Information Grid */}
       <div className="grid gap-12 md:grid-cols-[280px,1fr]">
@@ -195,10 +231,10 @@ export default function BookDetail() {
           <p className="mt-1 text-lg text-ivory/60">{t("bookDetail.byAuthor", { author: book.author })}</p>
 
           <div className="mt-1.5 flex items-center gap-2">
-            <StarRating value={book.avgRating} />
+            <StarRating value={avgRating} />
             <span className="text-sm text-ivory/50">
               {book.reviewCount > 0
-                ? t("bookDetail.ratingSummary", { rating: book.avgRating.toFixed(1), count: book.reviewCount })
+                ? t("bookDetail.ratingSummary", { rating: avgRating.toFixed(1), count: book.reviewCount })
                 : t("bookDetail.noReviewsYet")}
             </span>
           </div>
@@ -246,6 +282,8 @@ export default function BookDetail() {
               </button>
             )}
           </div>
+
+          {claimError && <p className="mt-2 text-sm text-red-400">{claimError}</p>}
 
           {!user && <p className="mt-2 text-sm text-ivory/40">{t("bookDetail.signInToBuyOrRead")}</p>}
 

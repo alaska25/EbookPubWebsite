@@ -4,16 +4,25 @@ import api from "../../api/axios.js";
 
 export default function AdminBooks() {
   const [books, setBooks] = useState([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   // Tracks which row's toggle request is in flight, so we can disable just
   // that button and avoid double-clicks without blocking the whole table.
   const [togglingId, setTogglingId] = useState(null);
 
   const load = () => {
     setLoading(true);
+    setError("");
     api
       .get("/books/admin", { params: { limit: 100 } })
-      .then(({ data }) => setBooks(data.books))
+      .then(({ data }) => {
+        setBooks(data.books);
+        setTotal(data.total);
+      })
+      .catch((err) =>
+        setError(err.response?.data?.message || "Couldn't load books. Please try again.")
+      )
       .finally(() => setLoading(false));
   };
 
@@ -21,8 +30,12 @@ export default function AdminBooks() {
 
   const handleDelete = async (id) => {
     if (!confirm("Delete this book permanently? This also removes its files from storage.")) return;
-    await api.delete(`/books/${id}`);
-    load();
+    try {
+      await api.delete(`/books/${id}`);
+      load();
+    } catch (err) {
+      alert(err.response?.data?.message || "Couldn't delete the book. Please try again.");
+    }
   };
 
   const handleTogglePublish = async (book) => {
@@ -47,9 +60,10 @@ export default function AdminBooks() {
   const publishedCount = books.filter((b) => b.published !== false).length;
   const unpublishedCount = books.length - publishedCount;
   const catalogValue = books.reduce((sum, b) => sum + (b.isFree ? 0 : b.price || 0), 0);
+  const showingPartial = total > books.length;
 
   const stats = [
-    { label: "Titles in catalog", value: books.length },
+    { label: "Titles in catalog", value: total || books.length },
     { label: "Published", value: publishedCount },
     { label: "Unpublished", value: unpublishedCount },
     { label: "Combined list price", value: `$${catalogValue.toFixed(2)}` },
@@ -57,6 +71,15 @@ export default function AdminBooks() {
 
   return (
     <div>
+      {error && (
+        <div className="mb-6 flex items-center justify-between gap-4 rounded-md border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-400">
+          <span>{error}</span>
+          <button onClick={load} className="shrink-0 font-medium underline underline-offset-4">
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Catalog stats — the numbers themselves carry the emphasis (set in
           the display serif), not an icon or a bordered tile per stat. */}
       <dl className="grid grid-cols-2 gap-x-8 gap-y-6 border-b border-navy-700/60 pb-8 sm:grid-cols-4">
@@ -67,6 +90,12 @@ export default function AdminBooks() {
           </div>
         ))}
       </dl>
+      {showingPartial && (
+        <p className="mt-3 text-xs text-ivory/40">
+          Showing the newest {books.length} of {total} titles. Published, unpublished and price
+          figures cover the titles shown.
+        </p>
+      )}
 
       <div className="mt-8 overflow-hidden rounded-2xl border border-navy-700/60">
         <div className="overflow-x-auto">
@@ -145,7 +174,7 @@ export default function AdminBooks() {
         </div>
       </div>
 
-      {books.length === 0 && (
+      {books.length === 0 && !error && (
         <p className="mt-8 text-center text-ivory/50">
           No books yet — head to Add book to publish your first title.
         </p>

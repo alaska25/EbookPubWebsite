@@ -4,14 +4,23 @@ import api from "../../api/axios.js";
 
 export default function AdminTemplates() {
   const [templates, setTemplates] = useState([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [togglingId, setTogglingId] = useState(null);
 
   const load = () => {
     setLoading(true);
+    setError("");
     api
       .get("/templates/admin", { params: { limit: 100 } })
-      .then(({ data }) => setTemplates(data.templates))
+      .then(({ data }) => {
+        setTemplates(data.templates);
+        setTotal(data.total);
+      })
+      .catch((err) =>
+        setError(err.response?.data?.message || "Couldn't load templates. Please try again.")
+      )
       .finally(() => setLoading(false));
   };
 
@@ -19,8 +28,12 @@ export default function AdminTemplates() {
 
   const handleDelete = async (id) => {
     if (!confirm("Delete this template permanently? This also removes its files from storage.")) return;
-    await api.delete(`/templates/${id}`);
-    load();
+    try {
+      await api.delete(`/templates/${id}`);
+      load();
+    } catch (err) {
+      alert(err.response?.data?.message || "Couldn't delete the template. Please try again.");
+    }
   };
 
   const handleTogglePublish = async (template) => {
@@ -43,9 +56,10 @@ export default function AdminTemplates() {
   const publishedCount = templates.filter((t) => t.published !== false).length;
   const unpublishedCount = templates.length - publishedCount;
   const catalogValue = templates.reduce((sum, t) => sum + (t.isFree ? 0 : t.price || 0), 0);
+  const showingPartial = total > templates.length;
 
   const stats = [
-    { label: "Templates in catalog", value: templates.length },
+    { label: "Templates in catalog", value: total || templates.length },
     { label: "Published", value: publishedCount },
     { label: "Unpublished", value: unpublishedCount },
     { label: "Combined list price", value: `$${catalogValue.toFixed(2)}` },
@@ -53,6 +67,15 @@ export default function AdminTemplates() {
 
   return (
     <div>
+      {error && (
+        <div className="mb-6 flex items-center justify-between gap-4 rounded-md border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-400">
+          <span>{error}</span>
+          <button onClick={load} className="shrink-0 font-medium underline underline-offset-4">
+            Retry
+          </button>
+        </div>
+      )}
+
       <dl className="grid grid-cols-2 gap-x-8 gap-y-6 border-b border-navy-700/60 pb-8 sm:grid-cols-4">
         {stats.map((s) => (
           <div key={s.label}>
@@ -61,6 +84,12 @@ export default function AdminTemplates() {
           </div>
         ))}
       </dl>
+      {showingPartial && (
+        <p className="mt-3 text-xs text-ivory/40">
+          Showing the newest {templates.length} of {total} templates. Published, unpublished and
+          price figures cover the templates shown.
+        </p>
+      )}
 
       <div className="mt-8 overflow-hidden rounded-2xl border border-navy-700/60">
         <div className="overflow-x-auto">
@@ -130,7 +159,7 @@ export default function AdminTemplates() {
         </div>
       </div>
 
-      {templates.length === 0 && (
+      {templates.length === 0 && !error && (
         <p className="mt-8 text-center text-ivory/50">
           No templates yet — head to Add template to publish your first one.
         </p>

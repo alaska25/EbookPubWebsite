@@ -20,10 +20,12 @@ const emptyForm = {
 function FileField({ label, hint, accept, file, onChange, required }) {
   return (
     <div>
-      <label className="mb-1 block text-sm text-ivory/60">
-        {label}
-        {required && <span className="ml-1 text-red-400">*</span>}
-      </label>
+      {label && (
+        <label className="mb-1 block text-sm text-ivory/60">
+          {label}
+          {required && <span className="ml-1 text-red-400">*</span>}
+        </label>
+      )}
       {hint && <p className="mb-1.5 text-xs text-ivory/40">{hint}</p>}
 
       {file ? (
@@ -90,23 +92,28 @@ export default function AdminBookForm() {
 
   useEffect(() => {
     if (!isEditing) return;
-    api.get(`/books/${id}`).then(({ data }) => {
-      setForm({
-        title: data.title,
-        subtitle: data.subtitle || "",
-        author: data.author,
-        description: data.description,
-        category: data.category,
-        price: data.price,
-        isFree: data.isFree,
-        featured: data.featured,
-        pageCount: data.pageCount ?? "",
-        publishedAt: toDateInputValue(data.publishedAt),
-      });
-      setCurrentCoverUrl(data.coverUrl || null);
-      setCurrentBookFileType(data.fileType || null);
-      setCurrentSampleType(data.sampleFileType || null);
-    });
+    api
+      .get(`/books/${id}`)
+      .then(({ data }) => {
+        setForm({
+          title: data.title,
+          subtitle: data.subtitle || "",
+          author: data.author,
+          description: data.description,
+          category: data.category,
+          price: data.price,
+          isFree: data.isFree,
+          featured: data.featured,
+          pageCount: data.pageCount ?? "",
+          publishedAt: toDateInputValue(data.publishedAt),
+        });
+        setCurrentCoverUrl(data.coverUrl || null);
+        setCurrentBookFileType(data.fileType || null);
+        setCurrentSampleType(data.sampleFileType || null);
+      })
+      .catch((err) =>
+        setError(err.response?.data?.message || "Could not load this book. Please try again.")
+      );
   }, [id, isEditing]);
 
   const update = (key, value) => setForm((f) => ({ ...f, [key]: value }));
@@ -325,7 +332,7 @@ export default function AdminBookForm() {
         <>
           <FileField
             label="Cover image"
-            hint="JPG, PNG, or WebP."
+            hint="JPG, PNG, or WebP. It is resized automatically on upload."
             accept=".jpg,.jpeg,.png,.webp"
             file={cover}
             onChange={setCover}
@@ -341,7 +348,7 @@ export default function AdminBookForm() {
           />
           <FileField
             label="Sample file"
-            hint='Optional. A shorter preview readers can open without buying, like Amazon\u2019s "Read sample."'
+            hint={'Optional. A shorter preview readers can open without buying, like Amazon\u2019s "Read sample."'}
             accept=".pdf,.epub"
             file={sampleFile}
             onChange={setSampleFile}
@@ -361,7 +368,6 @@ export default function AdminBookForm() {
               />
             )}
             <FileField
-              label={null}
               hint="Choosing a new image replaces the current cover when you save."
               accept=".jpg,.jpeg,.png,.webp"
               file={cover}

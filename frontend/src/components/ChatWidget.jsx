@@ -105,10 +105,16 @@ export default function ChatWidget() {
     setSending(true);
 
     try {
-      const { data } = await api.post("/support/chat", {
-        message: trimmed,
-        history: nextMessages.slice(-13, -1), // exclude the just-added user message, it's sent separately
-      });
+      // Marked silent — this is a normal chat exchange, not a create/update
+      // action, and the reply appearing in the thread is feedback enough.
+      const { data } = await api.post(
+        "/support/chat",
+        {
+          message: trimmed,
+          history: nextMessages.slice(-13, -1), // exclude the just-added user message, it's sent separately
+        },
+        { silent: true }
+      );
       setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
     } catch (err) {
       setError(err.response?.data?.message || "Something went wrong. Please try again.");
